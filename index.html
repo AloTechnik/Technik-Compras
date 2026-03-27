@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Technik Services · Gestión de Compras</title>
+<title>Compras Technik</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:system-ui,-apple-system,sans-serif;background:#f8fafc;min-height:100vh}
@@ -55,6 +55,8 @@ const norm=p=>({
   cotizacionPath:p.cotizacion_path, cotizacionNombre:p.cotizacion_nombre,
   facturaPath:p.factura_path, facturaNombre:p.factura_nombre,
   comprobantePath:p.comprobante_path, comprobanteNombre:p.comprobante_nombre,
+  facturasExtra:p.facturas_extra||[],
+  comprobantesExtra:p.comprobantes_extra||[],
   solicitante:p.solicitante_nombre, solicitanteId:p.solicitante_id,
   fechaCreada:p.fecha_creada, fechaAprobada:p.fecha_aprobada, fechaRecibida:p.fecha_recibida,
   historial:p.historial||[],
@@ -170,6 +172,7 @@ function MainApp({user,onLogout}){
   const[showNP,setShowNP]=useState(false);
   const[editProv,setEditProv]=useState(null);
   const[search,setSearch]=useState("");
+  const[searchProv,setSearchProv]=useState("");
 
   useEffect(()=>{load();},[]);
 
@@ -217,7 +220,7 @@ function MainApp({user,onLogout}){
     }catch(err){console.error(err);alert("Error al crear: "+err.message);}
   };
 
-  const updateP=async(id,changes,hist,fm={})=>{
+  const updateP=async(id,changes,hist,fm={},extraFiles={})=>{
     try{
       const current=purchases.find(p=>p.id===id);
       const now=new Date().toISOString();
@@ -229,17 +232,36 @@ function MainApp({user,onLogout}){
           if(!ue){pu[k+"_path"]=path;pu[k+"_nombre"]=f.name;}
         }
       }
+      // Handle extra factura files
+      if(extraFiles.facturas&&extraFiles.facturas.length>0){
+        const curExtras=[...(current?.facturasExtra||[])];
+        for(const f of extraFiles.facturas){
+          const path="solicitudes/"+id+"/factura_extra_"+Date.now()+"_"+f.name.replace(/\s/g,"_");
+          const{error:ue}=await sb.storage.from("archivos").upload(path,f,{upsert:true});
+          if(!ue)curExtras.push({path,nombre:f.name});
+        }
+        pu.facturas_extra=curExtras;
+      }
+      // Handle extra comprobante files
+      if(extraFiles.comprobantes&&extraFiles.comprobantes.length>0){
+        const curExtras=[...(current?.comprobantesExtra||[])];
+        for(const f of extraFiles.comprobantes){
+          const path="solicitudes/"+id+"/comprobante_extra_"+Date.now()+"_"+f.name.replace(/\s/g,"_");
+          const{error:ue}=await sb.storage.from("archivos").upload(path,f,{upsert:true});
+          if(!ue)curExtras.push({path,nombre:f.name});
+        }
+        pu.comprobantes_extra=curExtras;
+      }
       const nh=[...(current?.historial||[]),{en:now,quien:user.name,...hist}];
-      // Agregar entradas automáticas al historial si se subieron archivos clave
       if(fm.factura&&fm.factura.name) nh.push({en:now,quien:user.name,accion:"Factura confirmada automáticamente al subir archivo",nota:""});
       if(fm.comprobante&&fm.comprobante.name) nh.push({en:now,quien:user.name,accion:"Pago confirmado automáticamente al subir comprobante",nota:""});
+      if(extraFiles.facturas?.length>0) nh.push({en:now,quien:user.name,accion:"Factura(s) adicional(es) agregada(s)",nota:""});
+      if(extraFiles.comprobantes?.length>0) nh.push({en:now,quien:user.name,accion:"Comprobante(s) adicional(es) agregado(s)",nota:""});
       const upd={historial:nh,updated_at:now,...pu};
       if("estado" in changes)upd.estado=changes.estado;
       if("facturaRecibida" in changes)upd.factura_recibida=changes.facturaRecibida;
       if("pagado" in changes)upd.pagado=changes.pagado;
-      // Auto-confirmar factura si se subió el archivo
       if(fm.factura&&fm.factura.name)upd.factura_recibida=true;
-      // Auto-confirmar pago si se subió el comprobante
       if(fm.comprobante&&fm.comprobante.name)upd.pagado=true;
       if(changes.estado==="APROBADO")upd.fecha_aprobada=now;
       if(changes.estado==="RECIBIDO")upd.fecha_recibida=now;
@@ -315,7 +337,7 @@ function MainApp({user,onLogout}){
   return(
     <div style={{display:"flex",flexDirection:"column",height:"100vh",background:"#f8fafc"}}>
       <header style={{background:"#fff",borderBottom:"1px solid #e2e8f0",padding:"0 20px",height:56,display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0,boxShadow:"0 1px 3px rgba(0,0,0,0.06)"}}>
-        <div style={{display:"flex",alignItems:"center",gap:14}}><Logo/><div style={{width:1,height:26,background:"#e2e8f0"}}/><span style={{fontSize:13,color:"#64748b",fontWeight:500}}>Gestión de Compras</span></div>
+        <div style={{display:"flex",alignItems:"center",gap:14}}><Logo/><div style={{width:1,height:26,background:"#e2e8f0"}}/><span style={{fontSize:13,color:"#64748b",fontWeight:500}}>Compras Technik</span></div>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <div style={{textAlign:"right"}}><div style={{fontSize:12,fontWeight:500,color:"#1e293b"}}>{user.name}</div><div style={{fontSize:10,color:"#94a3b8"}}>{user.role}</div></div>
           <div style={{width:36,height:36,borderRadius:"50%",background:user.color,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:12,fontWeight:600}}>{user.initials}</div>
@@ -347,9 +369,10 @@ function MainApp({user,onLogout}){
           </>}
           {view==="proveedores"&&<>
             <button onClick={()=>setShowNP(true)} style={{width:"100%",background:"#1a56db",color:"#fff",border:"none",borderRadius:9,padding:"9px 0",fontSize:12,fontWeight:600,cursor:"pointer",marginBottom:6}}>+ Nuevo Proveedor</button>
-            <div style={{fontSize:11,color:"#94a3b8",padding:"2px 6px 6px"}}>{providers.length} proveedor{providers.length!==1?"es":""}</div>
+            <input value={searchProv} onChange={e=>setSearchProv(e.target.value)} placeholder="Buscar proveedor, RUT..." style={{width:"100%",border:"1px solid #e2e8f0",borderRadius:7,padding:"5px 8px",fontSize:11,color:"#1e293b",background:"#fff",outline:"none",boxSizing:"border-box",marginBottom:4}}/>
+            <div style={{fontSize:11,color:"#94a3b8",padding:"2px 6px 6px"}}>{providers.filter(pv=>!searchProv||pv.nombre?.toLowerCase().includes(searchProv.toLowerCase())||pv.razonSocial?.toLowerCase().includes(searchProv.toLowerCase())||pv.rut?.toLowerCase().includes(searchProv.toLowerCase())).length} proveedor{providers.length!==1?"es":""}</div>
             <div style={{display:"flex",flexDirection:"column",gap:3,flex:1,overflowY:"auto"}}>
-              {providers.map(pv=>(<div key={pv.id} onClick={()=>setEditProv(pv)} style={{padding:"8px 10px",borderRadius:8,border:"1px solid #e2e8f0",cursor:"pointer",background:"#fff"}} onMouseEnter={e=>{e.currentTarget.style.borderColor="#93c5fd";e.currentTarget.style.background="#eff6ff";}} onMouseLeave={e=>{e.currentTarget.style.borderColor="#e2e8f0";e.currentTarget.style.background="#fff";}}><div style={{fontSize:12,fontWeight:600,color:"#1e293b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{pv.nombre}</div><div style={{fontSize:10,color:"#94a3b8",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{pv.razonSocial}</div></div>))}
+              {providers.filter(pv=>!searchProv||pv.nombre?.toLowerCase().includes(searchProv.toLowerCase())||pv.razonSocial?.toLowerCase().includes(searchProv.toLowerCase())||pv.rut?.toLowerCase().includes(searchProv.toLowerCase())).map(pv=>(<div key={pv.id} onClick={()=>setEditProv(pv)} style={{padding:"8px 10px",borderRadius:8,border:"1px solid #e2e8f0",cursor:"pointer",background:"#fff"}} onMouseEnter={e=>{e.currentTarget.style.borderColor="#93c5fd";e.currentTarget.style.background="#eff6ff";}} onMouseLeave={e=>{e.currentTarget.style.borderColor="#e2e8f0";e.currentTarget.style.background="#fff";}}><div style={{fontSize:12,fontWeight:600,color:"#1e293b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{pv.nombre}</div><div style={{fontSize:10,color:"#94a3b8",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{pv.razonSocial}</div></div>))}
               {providers.length===0&&<div style={{fontSize:12,color:"#cbd5e1",textAlign:"center",paddingTop:20}}>Sin proveedores</div>}
             </div>
           </>}
@@ -374,9 +397,12 @@ function MainApp({user,onLogout}){
             :<div style={{display:"flex",flexDirection:"column",gap:8}}>{filtered.map(p=><PCard key={p.id} p={p} onClick={()=>setSelected(p)} af={filter}/>)}</div>}
           </>}
           {view==="proveedores"&&<div>
-            <h2 style={{margin:"0 0 16px",fontSize:15,fontWeight:600,color:"#1e293b"}}>Proveedores <span style={{fontSize:12,fontWeight:400,color:"#94a3b8"}}>({providers.length})</span></h2>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+              <h2 style={{margin:0,fontSize:15,fontWeight:600,color:"#1e293b"}}>Proveedores <span style={{fontSize:12,fontWeight:400,color:"#94a3b8"}}>({providers.filter(pv=>!searchProv||pv.nombre?.toLowerCase().includes(searchProv.toLowerCase())||pv.razonSocial?.toLowerCase().includes(searchProv.toLowerCase())||pv.rut?.toLowerCase().includes(searchProv.toLowerCase())).length})</span></h2>
+              <input value={searchProv} onChange={e=>setSearchProv(e.target.value)} placeholder="Buscar proveedor, RUT..." style={{marginLeft:"auto",border:"1px solid #e2e8f0",borderRadius:7,padding:"5px 10px",fontSize:12,color:"#1e293b",background:"#fff",width:240,outline:"none"}}/>
+            </div>
             {providers.length===0?<div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:200}}><div style={{fontSize:40,marginBottom:10}}>🏢</div><p style={{color:"#94a3b8",fontSize:13}}>No hay proveedores</p><button onClick={()=>setShowNP(true)} style={{marginTop:10,fontSize:12,color:"#1a56db",background:"none",border:"none",cursor:"pointer",textDecoration:"underline"}}>Crear el primero</button></div>
-            :<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10}}>{providers.map(pv=><PVCard key={pv.id} pv={pv} onEdit={()=>setEditProv(pv)} onDel={()=>delProv(pv.id)}/>)}</div>}
+            :<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10}}>{providers.filter(pv=>!searchProv||pv.nombre?.toLowerCase().includes(searchProv.toLowerCase())||pv.razonSocial?.toLowerCase().includes(searchProv.toLowerCase())||pv.rut?.toLowerCase().includes(searchProv.toLowerCase())).map(pv=><PVCard key={pv.id} pv={pv} onEdit={()=>setEditProv(pv)} onDel={()=>delProv(pv.id)}/>)}</div>}
           </div>}
         </main>
       </div>
@@ -455,9 +481,14 @@ function EditModal({p,providers,onClose,onSave,onCP}){
 
 function Detail({p,user,onClose,onUpdate,onOpenFile,onEdit}){
   const[note,setNote]=useState("");const[saving,setSaving]=useState(false);const[nf,setNf]=useState({cotizacion:null,factura:null,comprobante:null});
+  const[extraFacturas,setExtraFacturas]=useState([]);
+  const[extraComprobantes,setExtraComprobantes]=useState([]);
+  const factRef=useRef();const compRef=useRef();
   const role=user.role;const canEdit=CAN_EDIT(p);
-  const act=async(changes,accion)=>{setSaving(true);await onUpdate(p.id,changes,{accion,nota:note},nf);setNote("");setNf({cotizacion:null,factura:null,comprobante:null});setSaving(false);};
-  const hasNF=Object.values(nf).some(Boolean);const st=STATUS[p.estado];
+  const act=async(changes,accion)=>{setSaving(true);await onUpdate(p.id,changes,{accion,nota:note},nf,{facturas:extraFacturas,comprobantes:extraComprobantes});setNote("");setNf({cotizacion:null,factura:null,comprobante:null});setExtraFacturas([]);setExtraComprobantes([]);setSaving(false);};
+  const hasNF=Object.values(nf).some(Boolean)||extraFacturas.length>0||extraComprobantes.length>0;const st=STATUS[p.estado];
+  const allFacturas=[...(p.facturaPath?[{path:p.facturaPath,nombre:p.facturaNombre||"Factura"}]:[]),...(p.facturasExtra||[])];
+  const allComprobantes=[...(p.comprobantePath?[{path:p.comprobantePath,nombre:p.comprobanteNombre||"Comprobante"}]:[]),...(p.comprobantesExtra||[])];
   return(<Ov onClose={onClose}><MB title={"Solicitud #"+p.id+" — "+p.proveedor} onClose={onClose} wide><div style={{display:"flex",gap:20}}>
     <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",gap:11}}>
       <div style={{display:"flex",alignItems:"center",gap:7,flexWrap:"wrap"}}>
@@ -470,9 +501,23 @@ function Detail({p,user,onClose,onUpdate,onOpenFile,onEdit}){
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>{[["📅","Creada",p.fechaCreada],["✅","Aprobada",p.fechaAprobada],["📦","Recibida",p.fechaRecibida]].map(([ic,lb,dt])=>(<div key={lb} style={{borderRadius:9,border:"1px solid "+(dt?"#bbf7d0":"#e2e8f0"),background:dt?"#f0fdf4":"#f8fafc",padding:"8px 10px",textAlign:"center"}}><div style={{fontSize:10,color:"#94a3b8",marginBottom:2}}>{ic} {lb}</div><div style={{fontSize:11,fontWeight:600,color:dt?"#15803d":"#94a3b8"}}>{dt?fmtD(dt):"Pendiente"}</div></div>))}</div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>{[[p.facturaRecibida,"Factura","🧾"],[p.pagado,"Pago","💳"]].map(([ok,lb,ic])=>(<div key={lb} style={{borderRadius:9,border:"1px solid "+(ok?"#bbf7d0":lb==="Factura"?"#fed7aa":"#f9a8d4"),background:ok?"#f0fdf4":lb==="Factura"?"#fff7ed":"#fdf2f8",padding:"8px 12px",textAlign:"center"}}><div style={{fontSize:11,color:"#94a3b8",marginBottom:2}}>{ic} {lb}</div><div style={{fontSize:12,fontWeight:600,color:ok?"#15803d":lb==="Factura"?"#c2410c":"#9d174d"}}>{ok?"✓ Confirmado":"Pendiente"}</div></div>))}</div>
       <div><div style={{fontSize:10,fontWeight:600,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:7}}>Archivos adjuntos</div>
-        {[["cotizacion","Oferta / Cotización",p.cotizacionPath,p.cotizacionNombre],["factura","Factura",p.facturaPath,p.facturaNombre],["comprobante","Comprobante de Pago",p.comprobantePath,p.comprobanteNombre]].map(([k,lb,path,nom])=>(
-          <AttRow key={k} label={lb} existingPath={path} existingNombre={nom} pending={nf[k]} onOpen={()=>onOpenFile(path)} onFile={v=>setNf(x=>({...x,[k]:v}))}/>
-        ))}
+        <AttRow label="Oferta / Cotización" existingPath={p.cotizacionPath} existingNombre={p.cotizacionNombre} pending={nf.cotizacion} onOpen={()=>onOpenFile(p.cotizacionPath)} onFile={v=>setNf(x=>({...x,cotizacion:v}))}/>
+        <div style={{marginBottom:5}}>
+          <div style={{fontSize:11,color:"#64748b",marginBottom:4,fontWeight:500}}>🧾 Facturas ({allFacturas.length+nf.factura?allFacturas.length+(nf.factura?1:0)+extraFacturas.length:allFacturas.length+extraFacturas.length} archivo{allFacturas.length+extraFacturas.length!==1?"s":""})</div>
+          {allFacturas.map((f,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:6,fontSize:12,marginBottom:3}}><button onClick={()=>onOpenFile(f.path)} style={{background:"none",border:"none",cursor:"pointer",padding:0,color:"#1a56db",fontSize:12,textDecoration:"underline",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:220}}>📎 {f.nombre}</button></div>)}
+          {nf.factura&&<div style={{fontSize:11,color:"#d97706",marginBottom:3}}>📎 {nf.factura.name} (pendiente)</div>}
+          {extraFacturas.map((f,i)=><div key={i} style={{fontSize:11,color:"#d97706",marginBottom:3}}>📎 {f.name} (pendiente)</div>)}
+          <input ref={factRef} type="file" accept=".pdf,image/*" style={{display:"none"}} onChange={e=>{const f=e.target.files[0];if(!f)return;if(!nf.factura&&allFacturas.length===0)setNf(x=>({...x,factura:f}));else setExtraFacturas(prev=>[...prev,f]);e.target.value="";}}/>
+          <button onClick={()=>factRef.current.click()} style={{fontSize:11,color:"#1a56db",background:"none",border:"1px dashed #93c5fd",borderRadius:6,padding:"3px 10px",cursor:"pointer",marginTop:2}}>+ Agregar factura</button>
+        </div>
+        <div style={{marginBottom:5}}>
+          <div style={{fontSize:11,color:"#64748b",marginBottom:4,fontWeight:500}}>💳 Comprobantes ({allComprobantes.length+extraComprobantes.length} archivo{allComprobantes.length+extraComprobantes.length!==1?"s":""})</div>
+          {allComprobantes.map((f,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:6,fontSize:12,marginBottom:3}}><button onClick={()=>onOpenFile(f.path)} style={{background:"none",border:"none",cursor:"pointer",padding:0,color:"#1a56db",fontSize:12,textDecoration:"underline",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:220}}>📎 {f.nombre}</button></div>)}
+          {nf.comprobante&&<div style={{fontSize:11,color:"#d97706",marginBottom:3}}>📎 {nf.comprobante.name} (pendiente)</div>}
+          {extraComprobantes.map((f,i)=><div key={i} style={{fontSize:11,color:"#d97706",marginBottom:3}}>📎 {f.name} (pendiente)</div>)}
+          <input ref={compRef} type="file" accept=".pdf,image/*" style={{display:"none"}} onChange={e=>{const f=e.target.files[0];if(!f)return;if(!nf.comprobante&&allComprobantes.length===0)setNf(x=>({...x,comprobante:f}));else setExtraComprobantes(prev=>[...prev,f]);e.target.value="";}}/>
+          <button onClick={()=>compRef.current.click()} style={{fontSize:11,color:"#1a56db",background:"none",border:"1px dashed #93c5fd",borderRadius:6,padding:"3px 10px",cursor:"pointer",marginTop:2}}>+ Agregar comprobante</button>
+        </div>
       </div>
     </div>
     <div style={{width:210,flexShrink:0,display:"flex",flexDirection:"column",gap:11}}>
