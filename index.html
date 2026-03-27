@@ -26,7 +26,7 @@ const LOGO_SRC = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1B
 <script type="text/babel">
 const{useState,useEffect,useRef}=React;
 const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
-
+ 
 const CURRENCIES=["UYU","USD","EUR"];
 const CATEGORIAS=["Materiales","Consumibles","Herramientas","Seguridad","Movilidad","Servicios","Gastos Fijos","Otros"];
 const TIPOS=["Gasto","Inversión"];
@@ -39,14 +39,14 @@ const STATUS={
 };
 const STATUSES=["SOLICITADO","APROBADO","RECHAZADO","REVISIÓN","RECIBIDO"];
 const EMPTY_PROV={nombre:"",razonSocial:"",rut:"",direccion:"",email:"",telefono:"",contactoNombre:"",banco:"",numeroCuenta:""};
-
+ 
 const fmtM=(n,c)=>c+" "+new Intl.NumberFormat("es-UY",{minimumFractionDigits:2}).format(+n);
 const fmtDT=iso=>iso?new Date(iso).toLocaleString("es-UY",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}):"—";
 const fmtD=iso=>iso?new Date(iso).toLocaleDateString("es-UY",{day:"2-digit",month:"2-digit",year:"numeric"}):"—";
 const CAN_APP=r=>r==="MANAGER"||r==="ADMINISTRACIÓN";
 const CAN_FIN=r=>r==="ADMINISTRACIÓN";
 const CAN_EDIT=p=>["SOLICITADO","REVISIÓN"].includes(p.estado);
-
+ 
 const norm=p=>({
   id:p.id, proveedor:p.proveedor_nombre, proveedorId:p.proveedor_id,
   categoria:p.categoria, tipo:p.tipo, obra:p.obra||"",
@@ -76,12 +76,12 @@ function applyFilter(list,filter,search){
   return r;
 }
 const Logo=()=>(<img src={LOGO_SRC} alt="Technik" style={{height:32,width:"auto",objectFit:"contain"}}/>);
-
+ 
 /* ══ SESSION WRAPPER ══ */
 function App(){
   const[user,setUser]=useState(null);
   const[checking,setChecking]=useState(true);
-
+ 
   const fetchUser=async(email)=>{
     const{data}=await sb.from("usuarios").select("*").eq("email",email).single();
     if(!data)return null;
@@ -91,7 +91,7 @@ function App(){
     }
     return{id:data.id,name:data.nombre,email:data.email,role:data.rol,initials:data.initials,color:data.color};
   };
-
+ 
   useEffect(()=>{
     sb.auth.getSession().then(async({data:{session}})=>{
       if(session){const u=await fetchUser(session.user.email);if(u)setUser(u);}
@@ -100,7 +100,7 @@ function App(){
     const{data:{subscription}}=sb.auth.onAuthStateChange((_e,session)=>{if(!session)setUser(null);});
     return()=>subscription.unsubscribe();
   },[]);
-
+ 
   const handleLogin=async(email,pass)=>{
     const{error}=await sb.auth.signInWithPassword({email,password:pass});
     if(error)throw error;
@@ -109,12 +109,12 @@ function App(){
     setUser(u);
   };
   const handleLogout=async()=>{await sb.auth.signOut();setUser(null);};
-
+ 
   if(checking)return(<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#f8fafc",color:"#94a3b8",fontSize:14}}>Cargando...</div>);
   if(!user)return<Login onLogin={handleLogin}/>;
   return<MainApp user={user} onLogout={handleLogout}/>;
 }
-
+ 
 /* ══ LOGIN ══ */
 function Login({onLogin}){
   const[email,setEmail]=useState("");
@@ -158,7 +158,7 @@ function Login({onLogin}){
     </div>
   );
 }
-
+ 
 /* ══ MAIN APP ══ */
 function MainApp({user,onLogout}){
   const[view,setView]=useState("solicitudes");
@@ -173,9 +173,9 @@ function MainApp({user,onLogout}){
   const[editProv,setEditProv]=useState(null);
   const[search,setSearch]=useState("");
   const[searchProv,setSearchProv]=useState("");
-
+ 
   useEffect(()=>{load();},[]);
-
+ 
   const load=async()=>{
     setLoading(true);
     try{
@@ -188,7 +188,7 @@ function MainApp({user,onLogout}){
     }catch(err){console.error(err);}
     setLoading(false);
   };
-
+ 
   const createP=async(fd,fm)=>{
     try{
       const{data:id,error:ie}=await sb.rpc("next_solicitud_id");
@@ -219,7 +219,7 @@ function MainApp({user,onLogout}){
       await load();setShowNew(false);
     }catch(err){console.error(err);alert("Error al crear: "+err.message);}
   };
-
+ 
   const updateP=async(id,changes,hist,fm={},extraFiles={})=>{
     try{
       const current=purchases.find(p=>p.id===id);
@@ -271,7 +271,7 @@ function MainApp({user,onLogout}){
       if(selected?.id===id){const nl=purchases.find(p=>p.id===id);if(nl)setSelected(nl);}
     }catch(err){console.error(err);alert("Error al actualizar: "+err.message);}
   };
-
+ 
   const editP=async(id,fd,fm)=>{
     try{
       const current=purchases.find(p=>p.id===id);
@@ -297,14 +297,14 @@ function MainApp({user,onLogout}){
       if(selected?.id===id)setSelected(null);
     }catch(err){console.error(err);alert("Error al editar: "+err.message);}
   };
-
+ 
   const openFile=async(path)=>{
     if(!path){alert("Archivo no disponible");return;}
     const{data,error}=await sb.storage.from("archivos").createSignedUrl(path,3600);
     if(data?.signedUrl)window.open(data.signedUrl,"_blank");
     else alert("No se pudo abrir el archivo");
   };
-
+ 
   const saveProv=async(prov)=>{
     try{
       const d={nombre:prov.nombre,razon_social:prov.razonSocial,rut:prov.rut||null,
@@ -321,19 +321,19 @@ function MainApp({user,onLogout}){
       await load();setShowNP(false);setEditProv(null);return saved;
     }catch(err){console.error(err);alert("Error al guardar proveedor: "+err.message);}
   };
-
+ 
   const delProv=async(id)=>{
     if(!confirm("¿Eliminar este proveedor?"))return;
     await sb.from("proveedores").delete().eq("id",id);
     await load();setEditProv(null);
   };
-
+ 
   const filtered=applyFilter(purchases,filter,search);
   const counts=STATUSES.reduce((a,s)=>({...a,[s]:purchases.filter(p=>p.estado===s).length}),{});
   const cSF=purchases.filter(p=>!p.facturaRecibida&&p.estado==="RECIBIDO").length;
   const cPP=purchases.filter(p=>!p.pagado&&["APROBADO","RECIBIDO"].includes(p.estado)).length;
   const filterLabel=()=>{if(filter==="TODOS")return"Todas las Solicitudes";if(filter==="SIN_FACTURA")return"Sin Factura";if(filter==="PAGO_PENDIENTE")return"Pago Pendiente";return STATUS[filter]?.label;};
-
+ 
   return(
     <div style={{display:"flex",flexDirection:"column",height:"100vh",background:"#f8fafc"}}>
       <header style={{background:"#fff",borderBottom:"1px solid #e2e8f0",padding:"0 20px",height:56,display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0,boxShadow:"0 1px 3px rgba(0,0,0,0.06)"}}>
@@ -347,8 +347,8 @@ function MainApp({user,onLogout}){
       <div style={{display:"flex",flex:1,overflow:"hidden"}}>
         <aside style={{width:214,background:"#fff",borderRight:"1px solid #e2e8f0",padding:"14px 10px",display:"flex",flexDirection:"column",gap:2,flexShrink:0,overflowY:"auto"}}>
           <div style={{display:"flex",gap:4,marginBottom:10}}>
-            {[["solicitudes","📋","Solicitudes"],["proveedores","🏢","Proveedores"]].map(([v,ic,lb])=>(
-              <button key={v} onClick={()=>{setView(v);setSearch("");setFilter("TODOS");}} style={{flex:1,padding:"6px 4px",borderRadius:7,border:"none",cursor:"pointer",fontSize:11,fontWeight:view===v?600:400,background:view===v?"#dbeafe":"#f8fafc",color:view===v?"#1e40af":"#64748b"}}>{ic} {lb}</button>
+            {[["solicitudes","📋","Compras"],["proveedores","🏢","Proveedores"],["ia","🤖","IA"]].map(([v,ic,lb])=>(
+              <button key={v} onClick={()=>{setView(v);setSearch("");setFilter("TODOS");}} style={{flex:1,padding:"6px 4px",borderRadius:7,border:"none",cursor:"pointer",fontSize:11,fontWeight:view===v?600:400,background:view===v?(v==="ia"?"#f3e8ff":"#dbeafe"):"#f8fafc",color:view===v?(v==="ia"?"#7c3aed":"#1e40af"):"#64748b"}}>{ic} {lb}</button>
             ))}
           </div>
           {view==="solicitudes"&&<>
@@ -404,6 +404,7 @@ function MainApp({user,onLogout}){
             {providers.length===0?<div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:200}}><div style={{fontSize:40,marginBottom:10}}>🏢</div><p style={{color:"#94a3b8",fontSize:13}}>No hay proveedores</p><button onClick={()=>setShowNP(true)} style={{marginTop:10,fontSize:12,color:"#1a56db",background:"none",border:"none",cursor:"pointer",textDecoration:"underline"}}>Crear el primero</button></div>
             :<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10}}>{providers.filter(pv=>!searchProv||pv.nombre?.toLowerCase().includes(searchProv.toLowerCase())||pv.razonSocial?.toLowerCase().includes(searchProv.toLowerCase())||pv.rut?.toLowerCase().includes(searchProv.toLowerCase())).map(pv=><PVCard key={pv.id} pv={pv} onEdit={()=>setEditProv(pv)} onDel={()=>delProv(pv.id)}/>)}</div>}
           </div>}
+          {view==="ia"&&<AgentIA purchases={purchases} providers={providers} user={user}/>}
         </main>
       </div>
       {showNew&&<NewModal providers={providers} onClose={()=>setShowNew(false)} onCreate={createP} onCP={saveProv}/>}
@@ -413,7 +414,7 @@ function MainApp({user,onLogout}){
     </div>
   );
 }
-
+ 
 function PCard({p,onClick,af}){
   const st=STATUS[p.estado];const hF=af==="SIN_FACTURA"&&!p.facturaRecibida;const hP=af==="PAGO_PENDIENTE"&&!p.pagado;const ed=CAN_EDIT(p);
   return(<div onClick={onClick} style={{background:"#fff",border:"1px solid "+(hF?"#fed7aa":hP?"#f9a8d4":"#e2e8f0"),borderRadius:12,padding:"12px 14px",cursor:"pointer"}} onMouseEnter={e=>{e.currentTarget.style.borderColor="#93c5fd";e.currentTarget.style.boxShadow="0 4px 14px rgba(26,86,219,0.08)";}} onMouseLeave={e=>{e.currentTarget.style.borderColor=hF?"#fed7aa":hP?"#f9a8d4":"#e2e8f0";e.currentTarget.style.boxShadow="none";}}>
@@ -448,9 +449,9 @@ function PCard({p,onClick,af}){
     </div>
   </div>);
 }
-
+ 
 function PVCard({pv,onEdit,onDel}){return(<div style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:12,padding:"14px 16px"}}><div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8,marginBottom:8}}><div style={{flex:1,minWidth:0}}><div style={{fontWeight:700,fontSize:14,color:"#1e293b"}}>{pv.nombre}</div><div style={{fontSize:12,color:"#64748b",marginTop:1}}>{pv.razonSocial}</div></div><div style={{display:"flex",gap:4}}><IB onClick={onEdit}>✏️</IB><IB onClick={onDel} d>🗑</IB></div></div>{pv.rut&&<IR ic="🪪" lb="RUT" v={pv.rut}/>}{pv.email&&<IR ic="✉️" lb="Email" v={pv.email}/>}{pv.telefono&&<IR ic="📞" lb="Teléfono" v={pv.telefono}/>}{pv.direccion&&<IR ic="📍" lb="Dirección" v={pv.direccion}/>}{pv.contactoNombre&&<IR ic="👤" lb="Contacto" v={pv.contactoNombre}/>}{pv.banco&&<IR ic="🏦" lb="Banco" v={pv.banco}/>}{pv.numeroCuenta&&<IR ic="💳" lb="Cuenta" v={pv.numeroCuenta}/>}</div>);}
-
+ 
 function NewModal({providers,onClose,onCreate,onCP}){
   const[form,setForm]=useState({proveedor:"",proveedorId:"",categoria:CATEGORIAS[0],tipo:TIPOS[0],obra:"",moneda:"UYU",precio:"",descripcion:""});
   const[files,setFiles]=useState({cotizacion:null,factura:null,comprobante:null});
@@ -464,7 +465,7 @@ function NewModal({providers,onClose,onCreate,onCP}){
   if(showQP)return(<Ov onClose={()=>setShowQP(false)}><ProvModal onClose={()=>setShowQP(false)} onSave={hQP} quick/></Ov>);
   return(<Ov onClose={onClose}><MB title="Nueva Solicitud de Compra" onClose={onClose}><div style={{display:"flex",flexDirection:"column",gap:11}}><Fld label="Proveedor *" error={err.proveedor}><select style={inp(!!err.proveedor)} value={form.proveedorId} onChange={hS}><option value="">— Seleccioná un proveedor —</option>{lp.map(pv=><option key={pv.id} value={pv.id}>{pv.nombre}</option>)}<option value="__new__">➕ Crear nuevo proveedor...</option></select></Fld><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><Fld label="Categoría *"><select style={inp()} value={form.categoria} onChange={e=>f("categoria",e.target.value)}>{CATEGORIAS.map(c=><option key={c}>{c}</option>)}</select></Fld><Fld label="Tipo *"><select style={inp()} value={form.tipo} onChange={e=>f("tipo",e.target.value)}>{TIPOS.map(t=><option key={t}>{t}</option>)}</select></Fld><Fld label="Moneda *"><select style={inp()} value={form.moneda} onChange={e=>f("moneda",e.target.value)}>{CURRENCIES.map(c=><option key={c}>{c}</option>)}</select></Fld><Fld label="Precio total IVA inc. *" error={err.precio}><input type="number" min="0" step="0.01" style={inp(!!err.precio)} value={form.precio} onChange={e=>f("precio",e.target.value)} placeholder="0.00"/></Fld></div><Fld label="Obra / Proyecto (opcional)"><input style={inp()} value={form.obra} onChange={e=>f("obra",e.target.value)} placeholder="Obra o proyecto asociado"/></Fld><Fld label="Descripción *" error={err.descripcion}><textarea style={{...inp(!!err.descripcion),resize:"none",height:64}} value={form.descripcion} onChange={e=>f("descripcion",e.target.value)} placeholder="Descripción breve..."/></Fld><div><div style={{fontSize:12,fontWeight:500,color:"#475569",marginBottom:6}}>Archivos adjuntos</div>{[["cotizacion","Oferta / Cotización"],["factura","Factura"],["comprobante","Comprobante de Pago"]].map(([k,lb])=>(<UF key={k} label={lb} file={files[k]} onChange={v=>fl(k,v)}/>))}</div><div style={{display:"flex",justifyContent:"flex-end",gap:8,paddingTop:8,borderTop:"1px solid #f1f5f9"}}><button onClick={onClose} style={BS("ghost")}>Cancelar</button><button onClick={sub} disabled={saving} style={BS("primary")}>{saving?"Guardando...":"Enviar Solicitud"}</button></div></div></MB></Ov>);
 }
-
+ 
 function EditModal({p,providers,onClose,onSave,onCP}){
   const[form,setForm]=useState({proveedor:p.proveedor,proveedorId:p.proveedorId||"",categoria:p.categoria,tipo:p.tipo,obra:p.obra||"",moneda:p.moneda,precio:String(p.precio),descripcion:p.descripcion,notaEdicion:""});
   const[files,setFiles]=useState({cotizacion:null,factura:null,comprobante:null});
@@ -478,7 +479,7 @@ function EditModal({p,providers,onClose,onSave,onCP}){
   if(showQP)return(<Ov onClose={()=>setShowQP(false)}><ProvModal onClose={()=>setShowQP(false)} onSave={hQP} quick/></Ov>);
   return(<Ov onClose={onClose}><MB title={"Editar Solicitud #"+p.id} onClose={onClose}><div style={{background:"#fef9c3",border:"1px solid #fde68a",borderRadius:9,padding:"10px 14px",marginBottom:14,fontSize:12,color:"#92400e"}}>⚠️ Al guardar, vuelve a <strong>Solicitado</strong> para revisión del Manager.</div><div style={{display:"flex",flexDirection:"column",gap:11}}><Fld label="Proveedor *" error={err.proveedor}><select style={inp(!!err.proveedor)} value={form.proveedorId} onChange={hS}><option value="">— Seleccioná un proveedor —</option>{lp.map(pv=><option key={pv.id} value={pv.id}>{pv.nombre}</option>)}<option value="__new__">➕ Crear nuevo proveedor...</option></select></Fld><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><Fld label="Categoría *"><select style={inp()} value={form.categoria} onChange={e=>f("categoria",e.target.value)}>{CATEGORIAS.map(c=><option key={c}>{c}</option>)}</select></Fld><Fld label="Tipo *"><select style={inp()} value={form.tipo} onChange={e=>f("tipo",e.target.value)}>{TIPOS.map(t=><option key={t}>{t}</option>)}</select></Fld><Fld label="Moneda *"><select style={inp()} value={form.moneda} onChange={e=>f("moneda",e.target.value)}>{CURRENCIES.map(c=><option key={c}>{c}</option>)}</select></Fld><Fld label="Precio total IVA inc. *" error={err.precio}><input type="number" min="0" step="0.01" style={inp(!!err.precio)} value={form.precio} onChange={e=>f("precio",e.target.value)} placeholder="0.00"/></Fld></div><Fld label="Obra / Proyecto (opcional)"><input style={inp()} value={form.obra} onChange={e=>f("obra",e.target.value)} placeholder="Obra o proyecto asociado"/></Fld><Fld label="Descripción *" error={err.descripcion}><textarea style={{...inp(!!err.descripcion),resize:"none",height:64}} value={form.descripcion} onChange={e=>f("descripcion",e.target.value)} placeholder="Descripción breve..."/></Fld><Fld label="Motivo de la edición (opcional)"><textarea style={{...inp(false),resize:"none",height:48,fontSize:12}} value={form.notaEdicion} onChange={e=>f("notaEdicion",e.target.value)} placeholder="¿Por qué se modificó?"/></Fld><div><div style={{fontSize:12,fontWeight:500,color:"#475569",marginBottom:6}}>Actualizar archivos (opcional)</div>{[["cotizacion","Oferta / Cotización"],["factura","Factura"],["comprobante","Comprobante de Pago"]].map(([k,lb])=>(<UF key={k} label={lb} file={files[k]} onChange={v=>fl(k,v)}/>))}</div><div style={{display:"flex",justifyContent:"flex-end",gap:8,paddingTop:8,borderTop:"1px solid #f1f5f9"}}><button onClick={onClose} style={BS("ghost")}>Cancelar</button><button onClick={sub} disabled={saving} style={{...BS("primary"),background:"#d97706"}}>{saving?"Guardando...":"Guardar y Reenviar"}</button></div></div></MB></Ov>);
 }
-
+ 
 function Detail({p,user,onClose,onUpdate,onOpenFile,onEdit}){
   const[note,setNote]=useState("");const[saving,setSaving]=useState(false);const[nf,setNf]=useState({cotizacion:null,factura:null,comprobante:null});
   const[extraFacturas,setExtraFacturas]=useState([]);
@@ -537,7 +538,7 @@ function Detail({p,user,onClose,onUpdate,onOpenFile,onEdit}){
     </div>
   </div></MB></Ov>);
 }
-
+ 
 function ProvModal({prov,onClose,onSave,onDel,quick}){
   const[form,setForm]=useState({...EMPTY_PROV,...(prov||{})});const[saving,setSaving]=useState(false);const[err,setErr]=useState({});
   const f=(k,v)=>setForm(x=>({...x,[k]:v}));
@@ -549,7 +550,7 @@ function ProvModal({prov,onClose,onSave,onDel,quick}){
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingTop:8,borderTop:"1px solid #f1f5f9"}}>{onDel?<button onClick={onDel} style={{fontSize:12,color:"#dc2626",background:"none",border:"none",cursor:"pointer"}}>🗑 Eliminar proveedor</button>:<div/>}<div style={{display:"flex",gap:8}}><button onClick={onClose} style={BS("ghost")}>Cancelar</button><button onClick={sub} disabled={saving} style={BS("primary")}>{saving?"Guardando...":prov?"Guardar Cambios":"Crear Proveedor"}</button></div></div>
   </div></MB></Ov>);
 }
-
+ 
 function Ov({onClose,children}){return(<div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"flex-start",justifyContent:"center",zIndex:50,padding:16,overflowY:"auto"}}><div onClick={e=>e.stopPropagation()} style={{width:"100%",display:"flex",justifyContent:"center",marginTop:20}}>{children}</div></div>);}
 function MB({title,onClose,children,wide}){return(<div style={{background:"#fff",borderRadius:18,boxShadow:"0 24px 60px rgba(0,0,0,0.18)",width:"100%",maxWidth:wide?880:520,maxHeight:"90vh",overflow:"hidden",display:"flex",flexDirection:"column"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 20px",borderBottom:"1px solid #f1f5f9",flexShrink:0}}><h2 style={{margin:0,fontSize:15,fontWeight:600,color:"#1e293b"}}>{title}</h2><button onClick={onClose} style={{width:30,height:30,borderRadius:7,border:"none",background:"#f1f5f9",cursor:"pointer",fontSize:17,color:"#94a3b8",display:"flex",alignItems:"center",justifyContent:"center"}}>×</button></div><div style={{padding:"18px 20px",overflowY:"auto",flex:1}}>{children}</div></div>);}
 function Fld({label,error,children}){return(<div><label style={{display:"block",fontSize:12,fontWeight:500,color:"#475569",marginBottom:3}}>{label}</label>{children}{error&&<div style={{fontSize:11,color:"#dc2626",marginTop:2}}>{error}</div>}</div>);}
@@ -560,8 +561,95 @@ function IB({onClick,children,d}){return<button onClick={onClick} style={{width:
 function AB({color,label,onClick,loading}){return<button disabled={loading} onClick={onClick} style={{width:"100%",padding:"7px 10px",background:color,color:"#fff",border:"none",borderRadius:7,fontSize:12,fontWeight:500,cursor:"pointer",opacity:loading?0.6:1}}>{loading?"...":label}</button>;}
 const inp=e=>({width:"100%",border:"1px solid "+(e?"#fca5a5":"#e2e8f0"),borderRadius:7,padding:"7px 10px",fontSize:13,color:"#1e293b",background:"#fff",outline:"none",boxSizing:"border-box",fontFamily:"inherit"});
 const BS=t=>({padding:"7px 16px",borderRadius:8,fontSize:13,fontWeight:500,cursor:"pointer",border:"none",...(t==="primary"?{background:"#1a56db",color:"#fff"}:{background:"none",color:"#64748b"})});
-
+ 
+function AgentIA({purchases,providers,user}){
+  const[msgs,setMsgs]=useState([{role:"assistant",content:"¡Hola "+user.name+"! Soy tu asistente de Compras Technik. Tengo acceso a todos los datos de solicitudes y proveedores. ¿En qué puedo ayudarte?"}]);
+  const[input,setInput]=useState("");
+  const[loading,setLoading]=useState(false);
+  const bottomRef=useRef();
+  useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:"smooth"});},[msgs]);
+ 
+  const buildContext=()=>{
+    const resumen={
+      totalSolicitudes:purchases.length,
+      porEstado:purchases.reduce((a,p)=>{a[p.estado]=(a[p.estado]||0)+1;return a;},{}),
+      sinFactura:purchases.filter(p=>!p.facturaRecibida&&p.estado==="RECIBIDO").length,
+      pagoPendiente:purchases.filter(p=>!p.pagado&&["APROBADO","RECIBIDO"].includes(p.estado)).length,
+      totalProveedores:providers.length,
+    };
+    const solicitudesData=purchases.map(p=>({
+      id:p.id, proveedor:p.proveedor, categoria:p.categoria, tipo:p.tipo,
+      obra:p.obra||"", moneda:p.moneda, precio:p.precio, estado:p.estado,
+      facturaRecibida:p.facturaRecibida, pagado:p.pagado,
+      solicitante:p.solicitante, fechaCreada:p.fechaCreada,
+      fechaAprobada:p.fechaAprobada, fechaRecibida:p.fechaRecibida,
+    }));
+    const proveedoresData=providers.map(p=>({nombre:p.nombre,razonSocial:p.razonSocial,rut:p.rut,email:p.email}));
+    return`Sos el asistente de gestión de compras de Technik Services. Respondé siempre en español, de forma clara y concisa. Podés hacer cálculos, resúmenes y análisis sobre los datos disponibles.
+ 
+RESUMEN GENERAL:
+${JSON.stringify(resumen,null,2)}
+ 
+SOLICITUDES (${solicitudesData.length} registros):
+${JSON.stringify(solicitudesData,null,2)}
+ 
+PROVEEDORES (${proveedoresData.length} registros):
+${JSON.stringify(proveedoresData,null,2)}`;
+  };
+ 
+  const send=async()=>{
+    if(!input.trim()||loading)return;
+    const userMsg={role:"user",content:input.trim()};
+    setMsgs(prev=>[...prev,userMsg]);
+    setInput("");setLoading(true);
+    try{
+      const history=msgs.filter(m=>m.role!=="assistant"||msgs.indexOf(m)>0).map(m=>({role:m.role,content:m.content}));
+      const res=await fetch("https://api.anthropic.com/v1/messages",{
+        method:"POST",
+        headers:{"Content-Type":"application/json","x-api-key":"sk-ant-api03-TmI...QAAA","anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+        body:JSON.stringify({
+          model:"claude-sonnet-4-20250514",
+          max_tokens:1000,
+          system:buildContext(),
+          messages:[...history,userMsg],
+        }),
+      });
+      const data=await res.json();
+      const reply=data.content?.[0]?.text||"No pude procesar la respuesta.";
+      setMsgs(prev=>[...prev,{role:"assistant",content:reply}]);
+    }catch(e){
+      setMsgs(prev=>[...prev,{role:"assistant",content:"Error al conectar con el asistente. Intentá de nuevo."}]);
+    }
+    setLoading(false);
+  };
+ 
+  return(
+    <div style={{display:"flex",flexDirection:"column",height:"calc(100vh - 56px - 36px)",maxWidth:820,margin:"0 auto",width:"100%"}}>
+      <div style={{marginBottom:12}}>
+        <h2 style={{margin:0,fontSize:15,fontWeight:600,color:"#1e293b"}}>🤖 Asistente IA <span style={{fontSize:11,fontWeight:400,color:"#94a3b8",marginLeft:6}}>Powered by Claude</span></h2>
+        <div style={{fontSize:11,color:"#94a3b8",marginTop:2}}>Preguntá cualquier cosa sobre tus compras y proveedores en lenguaje natural</div>
+      </div>
+      <div style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column",gap:10,paddingBottom:12}}>
+        {msgs.map((m,i)=>(
+          <div key={i} style={{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start"}}>
+            <div style={{maxWidth:"80%",padding:"10px 14px",borderRadius:m.role==="user"?"16px 16px 4px 16px":"16px 16px 16px 4px",background:m.role==="user"?"#1a56db":"#fff",color:m.role==="user"?"#fff":"#1e293b",fontSize:13,lineHeight:1.5,boxShadow:"0 1px 3px rgba(0,0,0,0.08)",border:m.role==="assistant"?"1px solid #e2e8f0":"none",whiteSpace:"pre-wrap"}}>
+              {m.content}
+            </div>
+          </div>
+        ))}
+        {loading&&<div style={{display:"flex",justifyContent:"flex-start"}}><div style={{padding:"10px 14px",borderRadius:"16px 16px 16px 4px",background:"#fff",border:"1px solid #e2e8f0",fontSize:13,color:"#94a3b8"}}>✦ Analizando datos...</div></div>}
+        <div ref={bottomRef}/>
+      </div>
+      <div style={{display:"flex",gap:8,paddingTop:10,borderTop:"1px solid #e2e8f0"}}>
+        <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&send()} placeholder="Ej: ¿Cuánto gastamos este mes? ¿Qué solicitudes están sin factura?..." style={{flex:1,border:"1px solid #e2e8f0",borderRadius:10,padding:"10px 14px",fontSize:13,color:"#1e293b",outline:"none",background:"#fff"}}/>
+        <button onClick={send} disabled={loading||!input.trim()} style={{padding:"10px 18px",background:"#7c3aed",color:"#fff",border:"none",borderRadius:10,fontSize:13,fontWeight:600,cursor:"pointer",opacity:loading||!input.trim()?0.5:1}}>Enviar</button>
+      </div>
+    </div>
+  );
+}
+ 
 ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
 </script>
 </body>
 </html>
+ 
