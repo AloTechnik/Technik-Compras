@@ -173,18 +173,21 @@ function MainApp({user,onLogout}){
   const[editProv,setEditProv]=useState(null);
   const[search,setSearch]=useState("");
   const[searchProv,setSearchProv]=useState("");
+  const[obras,setObras]=useState([]);
 
   useEffect(()=>{load();},[]);
 
   const load=async()=>{
     setLoading(true);
     try{
-      const[{data:p,error:pe},{data:pv,error:pve}]=await Promise.all([
+      const[{data:p,error:pe},{data:pv,error:pve},{data:ob}]=await Promise.all([
         sb.from("solicitudes").select("*").order("fecha_creada",{ascending:false}),
         sb.from("proveedores").select("*").order("nombre"),
+        sb.from("obras").select("id,cliente_nombre,descripcion,estado_general").order("id",{ascending:false}),
       ]);
       if(!pe)setPurchases((p||[]).map(norm));
       if(!pve)setProviders((pv||[]).map(normPv));
+      setObras((ob||[]).filter(o=>!["CERRADA","RECHAZADA"].includes(o.estado_general)));
     }catch(err){console.error(err);}
     setLoading(false);
   };
@@ -406,9 +409,9 @@ function MainApp({user,onLogout}){
           </div>}
         </main>
       </div>
-      {showNew&&<NewModal providers={providers} onClose={()=>setShowNew(false)} onCreate={createP} onCP={saveProv}/>}
+      {showNew&&<NewModal providers={providers} obras={obras} onClose={()=>setShowNew(false)} onCreate={createP} onCP={saveProv}/>}
       {selected&&!editing&&<Detail p={selected} user={user} onClose={()=>setSelected(null)} onUpdate={updateP} onOpenFile={openFile} onEdit={()=>setEditing(selected)}/>}
-      {editing&&<EditModal p={editing} providers={providers} onClose={()=>setEditing(null)} onSave={editP} onCP={saveProv}/>}
+      {editing&&<EditModal p={editing} providers={providers} obras={obras} onClose={()=>setEditing(null)} onSave={editP} onCP={saveProv}/>}
       {(showNP||editProv)&&<ProvModal prov={editProv} onClose={()=>{setShowNP(false);setEditProv(null);}} onSave={saveProv} onDel={editProv?()=>delProv(editProv.id):null}/>}
     </div>
   );
@@ -451,7 +454,42 @@ function PCard({p,onClick,af}){
 
 function PVCard({pv,onEdit,onDel}){return(<div style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:12,padding:"14px 16px"}}><div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8,marginBottom:8}}><div style={{flex:1,minWidth:0}}><div style={{fontWeight:700,fontSize:14,color:"#1e293b"}}>{pv.nombre}</div><div style={{fontSize:12,color:"#64748b",marginTop:1}}>{pv.razonSocial}</div></div><div style={{display:"flex",gap:4}}><IB onClick={onEdit}>✏️</IB><IB onClick={onDel} d>🗑</IB></div></div>{pv.rut&&<IR ic="🪪" lb="RUT" v={pv.rut}/>}{pv.email&&<IR ic="✉️" lb="Email" v={pv.email}/>}{pv.telefono&&<IR ic="📞" lb="Teléfono" v={pv.telefono}/>}{pv.direccion&&<IR ic="📍" lb="Dirección" v={pv.direccion}/>}{pv.contactoNombre&&<IR ic="👤" lb="Contacto" v={pv.contactoNombre}/>}{pv.banco&&<IR ic="🏦" lb="Banco" v={pv.banco}/>}{pv.numeroCuenta&&<IR ic="💳" lb="Cuenta" v={pv.numeroCuenta}/>}</div>);}
 
-function NewModal({providers,onClose,onCreate,onCP}){
+function ObraSelector({value,onChange,obras}){
+  const[q,setQ]=useState(value||"");
+  const[open,setOpen]=useState(false);
+  const ref=useRef();
+  useEffect(()=>{setQ(value||"");},[value]);
+  useEffect(()=>{
+    const h=e=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};
+    document.addEventListener("mousedown",h);return()=>document.removeEventListener("mousedown",h);
+  },[]);
+  const filtered=obras.filter(o=>{
+    if(!q.trim())return true;
+    const s=q.toLowerCase();
+    return o.id.toLowerCase().includes(s)||o.cliente_nombre?.toLowerCase().includes(s)||o.descripcion?.toLowerCase().includes(s);
+  }).slice(0,12);
+  const label=o=>`${o.id} — ${o.cliente_nombre} — ${o.descripcion?.slice(0,40)}${o.descripcion?.length>40?"…":""}`;
+  const select=o=>{const v=label(o);setQ(v);onChange(v);setOpen(false);};
+  const clear=()=>{setQ("");onChange("");setOpen(false);};
+  return(<div ref={ref} style={{position:"relative"}}>
+    <div style={{position:"relative"}}>
+      <input value={q} onChange={e=>{setQ(e.target.value);onChange(e.target.value);setOpen(true);}} onFocus={()=>setOpen(true)} placeholder="Buscar por ID, cliente o descripción..." style={{...inp(false),paddingRight:q?28:10}}/>
+      {q&&<button onMouseDown={e=>{e.preventDefault();clear();}} style={{position:"absolute",right:7,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:14,color:"#94a3b8",padding:0,lineHeight:1}}>×</button>}
+    </div>
+    {open&&filtered.length>0&&<div style={{position:"absolute",top:"calc(100% + 3px)",left:0,right:0,background:"#fff",border:"1px solid #e2e8f0",borderRadius:9,boxShadow:"0 8px 24px rgba(0,0,0,0.12)",zIndex:500,maxHeight:220,overflowY:"auto"}}>
+      {!q.trim()&&<div style={{fontSize:11,color:"#94a3b8",padding:"6px 10px 4px",borderBottom:"1px solid #f1f5f9"}}>Obras activas</div>}
+      {filtered.map(o=><div key={o.id} onMouseDown={()=>select(o)} style={{padding:"8px 12px",fontSize:12,cursor:"pointer",borderBottom:"1px solid #f8fafc",display:"flex",gap:8,alignItems:"flex-start"}} onMouseEnter={e=>e.currentTarget.style.background="#f0fdf4"} onMouseLeave={e=>e.currentTarget.style.background="#fff"}>
+        <span style={{fontFamily:"monospace",fontSize:11,fontWeight:700,color:"#065f46",background:"#d1fae5",padding:"1px 6px",borderRadius:4,flexShrink:0}}>{o.id}</span>
+        <div style={{minWidth:0}}>
+          <div style={{fontWeight:600,color:"#1e293b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{o.cliente_nombre}</div>
+          <div style={{color:"#64748b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{o.descripcion}</div>
+        </div>
+      </div>)}
+    </div>}
+  </div>);
+}
+
+function NewModal({providers,obras,onClose,onCreate,onCP}){
   const[form,setForm]=useState({proveedor:"",proveedorId:"",categoria:CATEGORIAS[0],tipo:TIPOS[0],obra:"",moneda:"UYU",precio:"",descripcion:""});
   const[files,setFiles]=useState({cotizacion:null,factura:null,comprobante:null});
   const[saving,setSaving]=useState(false);const[err,setErr]=useState({});const[showQP,setShowQP]=useState(false);const[lp,setLp]=useState(providers);
@@ -462,10 +500,10 @@ function NewModal({providers,onClose,onCreate,onCP}){
   const val=()=>{const e={};if(!form.proveedor.trim())e.proveedor="Seleccioná un proveedor";if(!form.precio||+form.precio<=0)e.precio="Monto inválido";if(!form.descripcion.trim())e.descripcion="Requerido";setErr(e);return!Object.keys(e).length;};
   const sub=async()=>{if(!val())return;setSaving(true);await onCreate(form,files);setSaving(false);};
   if(showQP)return(<Ov onClose={()=>setShowQP(false)}><ProvModal onClose={()=>setShowQP(false)} onSave={hQP} quick/></Ov>);
-  return(<Ov onClose={onClose}><MB title="Nueva Solicitud de Compra" onClose={onClose}><div style={{display:"flex",flexDirection:"column",gap:11}}><Fld label="Proveedor *" error={err.proveedor}><select style={inp(!!err.proveedor)} value={form.proveedorId} onChange={hS}><option value="">— Seleccioná un proveedor —</option>{lp.map(pv=><option key={pv.id} value={pv.id}>{pv.nombre}</option>)}<option value="__new__">➕ Crear nuevo proveedor...</option></select></Fld><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><Fld label="Categoría *"><select style={inp()} value={form.categoria} onChange={e=>f("categoria",e.target.value)}>{CATEGORIAS.map(c=><option key={c}>{c}</option>)}</select></Fld><Fld label="Tipo *"><select style={inp()} value={form.tipo} onChange={e=>f("tipo",e.target.value)}>{TIPOS.map(t=><option key={t}>{t}</option>)}</select></Fld><Fld label="Moneda *"><select style={inp()} value={form.moneda} onChange={e=>f("moneda",e.target.value)}>{CURRENCIES.map(c=><option key={c}>{c}</option>)}</select></Fld><Fld label="Precio total IVA inc. *" error={err.precio}><input type="number" min="0" step="0.01" style={inp(!!err.precio)} value={form.precio} onChange={e=>f("precio",e.target.value)} placeholder="0.00"/></Fld></div><Fld label="Obra / Proyecto (opcional)"><input style={inp()} value={form.obra} onChange={e=>f("obra",e.target.value)} placeholder="Obra o proyecto asociado"/></Fld><Fld label="Descripción *" error={err.descripcion}><textarea style={{...inp(!!err.descripcion),resize:"none",height:64}} value={form.descripcion} onChange={e=>f("descripcion",e.target.value)} placeholder="Descripción breve..."/></Fld><div><div style={{fontSize:12,fontWeight:500,color:"#475569",marginBottom:6}}>Archivos adjuntos</div>{[["cotizacion","Oferta / Cotización"],["factura","Factura"],["comprobante","Comprobante de Pago"]].map(([k,lb])=>(<UF key={k} label={lb} file={files[k]} onChange={v=>fl(k,v)}/>))}</div><div style={{display:"flex",justifyContent:"flex-end",gap:8,paddingTop:8,borderTop:"1px solid #f1f5f9"}}><button onClick={onClose} style={BS("ghost")}>Cancelar</button><button onClick={sub} disabled={saving} style={BS("primary")}>{saving?"Guardando...":"Enviar Solicitud"}</button></div></div></MB></Ov>);
+  return(<Ov onClose={onClose}><MB title="Nueva Solicitud de Compra" onClose={onClose}><div style={{display:"flex",flexDirection:"column",gap:11}}><Fld label="Proveedor *" error={err.proveedor}><select style={inp(!!err.proveedor)} value={form.proveedorId} onChange={hS}><option value="">— Seleccioná un proveedor —</option>{lp.map(pv=><option key={pv.id} value={pv.id}>{pv.nombre}</option>)}<option value="__new__">➕ Crear nuevo proveedor...</option></select></Fld><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><Fld label="Categoría *"><select style={inp()} value={form.categoria} onChange={e=>f("categoria",e.target.value)}>{CATEGORIAS.map(c=><option key={c}>{c}</option>)}</select></Fld><Fld label="Tipo *"><select style={inp()} value={form.tipo} onChange={e=>f("tipo",e.target.value)}>{TIPOS.map(t=><option key={t}>{t}</option>)}</select></Fld><Fld label="Moneda *"><select style={inp()} value={form.moneda} onChange={e=>f("moneda",e.target.value)}>{CURRENCIES.map(c=><option key={c}>{c}</option>)}</select></Fld><Fld label="Precio total IVA inc. *" error={err.precio}><input type="number" min="0" step="0.01" style={inp(!!err.precio)} value={form.precio} onChange={e=>f("precio",e.target.value)} placeholder="0.00"/></Fld></div><Fld label="Obra / Proyecto (opcional)"><ObraSelector value={form.obra} onChange={v=>f("obra",v)} obras={obras}/></Fld><Fld label="Descripción *" error={err.descripcion}><textarea style={{...inp(!!err.descripcion),resize:"none",height:64}} value={form.descripcion} onChange={e=>f("descripcion",e.target.value)} placeholder="Descripción breve..."/></Fld><div><div style={{fontSize:12,fontWeight:500,color:"#475569",marginBottom:6}}>Archivos adjuntos</div>{[["cotizacion","Oferta / Cotización"],["factura","Factura"],["comprobante","Comprobante de Pago"]].map(([k,lb])=>(<UF key={k} label={lb} file={files[k]} onChange={v=>fl(k,v)}/>))}</div><div style={{display:"flex",justifyContent:"flex-end",gap:8,paddingTop:8,borderTop:"1px solid #f1f5f9"}}><button onClick={onClose} style={BS("ghost")}>Cancelar</button><button onClick={sub} disabled={saving} style={BS("primary")}>{saving?"Guardando...":"Enviar Solicitud"}</button></div></div></MB></Ov>);
 }
 
-function EditModal({p,providers,onClose,onSave,onCP}){
+function EditModal({p,providers,obras,onClose,onSave,onCP}){
   const[form,setForm]=useState({proveedor:p.proveedor,proveedorId:p.proveedorId||"",categoria:p.categoria,tipo:p.tipo,obra:p.obra||"",moneda:p.moneda,precio:String(p.precio),descripcion:p.descripcion,notaEdicion:""});
   const[files,setFiles]=useState({cotizacion:null,factura:null,comprobante:null});
   const[saving,setSaving]=useState(false);const[err,setErr]=useState({});const[showQP,setShowQP]=useState(false);const[lp,setLp]=useState(providers);
@@ -476,7 +514,7 @@ function EditModal({p,providers,onClose,onSave,onCP}){
   const val=()=>{const e={};if(!form.proveedor.trim())e.proveedor="Seleccioná un proveedor";if(!form.precio||+form.precio<=0)e.precio="Monto inválido";if(!form.descripcion.trim())e.descripcion="Requerido";setErr(e);return!Object.keys(e).length;};
   const sub=async()=>{if(!val())return;setSaving(true);await onSave(p.id,form,files);setSaving(false);};
   if(showQP)return(<Ov onClose={()=>setShowQP(false)}><ProvModal onClose={()=>setShowQP(false)} onSave={hQP} quick/></Ov>);
-  return(<Ov onClose={onClose}><MB title={"Editar Solicitud #"+p.id} onClose={onClose}><div style={{background:"#fef9c3",border:"1px solid #fde68a",borderRadius:9,padding:"10px 14px",marginBottom:14,fontSize:12,color:"#92400e"}}>⚠️ Al guardar, vuelve a <strong>Solicitado</strong> para revisión del Manager.</div><div style={{display:"flex",flexDirection:"column",gap:11}}><Fld label="Proveedor *" error={err.proveedor}><select style={inp(!!err.proveedor)} value={form.proveedorId} onChange={hS}><option value="">— Seleccioná un proveedor —</option>{lp.map(pv=><option key={pv.id} value={pv.id}>{pv.nombre}</option>)}<option value="__new__">➕ Crear nuevo proveedor...</option></select></Fld><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><Fld label="Categoría *"><select style={inp()} value={form.categoria} onChange={e=>f("categoria",e.target.value)}>{CATEGORIAS.map(c=><option key={c}>{c}</option>)}</select></Fld><Fld label="Tipo *"><select style={inp()} value={form.tipo} onChange={e=>f("tipo",e.target.value)}>{TIPOS.map(t=><option key={t}>{t}</option>)}</select></Fld><Fld label="Moneda *"><select style={inp()} value={form.moneda} onChange={e=>f("moneda",e.target.value)}>{CURRENCIES.map(c=><option key={c}>{c}</option>)}</select></Fld><Fld label="Precio total IVA inc. *" error={err.precio}><input type="number" min="0" step="0.01" style={inp(!!err.precio)} value={form.precio} onChange={e=>f("precio",e.target.value)} placeholder="0.00"/></Fld></div><Fld label="Obra / Proyecto (opcional)"><input style={inp()} value={form.obra} onChange={e=>f("obra",e.target.value)} placeholder="Obra o proyecto asociado"/></Fld><Fld label="Descripción *" error={err.descripcion}><textarea style={{...inp(!!err.descripcion),resize:"none",height:64}} value={form.descripcion} onChange={e=>f("descripcion",e.target.value)} placeholder="Descripción breve..."/></Fld><Fld label="Motivo de la edición (opcional)"><textarea style={{...inp(false),resize:"none",height:48,fontSize:12}} value={form.notaEdicion} onChange={e=>f("notaEdicion",e.target.value)} placeholder="¿Por qué se modificó?"/></Fld><div><div style={{fontSize:12,fontWeight:500,color:"#475569",marginBottom:6}}>Actualizar archivos (opcional)</div>{[["cotizacion","Oferta / Cotización"],["factura","Factura"],["comprobante","Comprobante de Pago"]].map(([k,lb])=>(<UF key={k} label={lb} file={files[k]} onChange={v=>fl(k,v)}/>))}</div><div style={{display:"flex",justifyContent:"flex-end",gap:8,paddingTop:8,borderTop:"1px solid #f1f5f9"}}><button onClick={onClose} style={BS("ghost")}>Cancelar</button><button onClick={sub} disabled={saving} style={{...BS("primary"),background:"#d97706"}}>{saving?"Guardando...":"Guardar y Reenviar"}</button></div></div></MB></Ov>);
+  return(<Ov onClose={onClose}><MB title={"Editar Solicitud #"+p.id} onClose={onClose}><div style={{background:"#fef9c3",border:"1px solid #fde68a",borderRadius:9,padding:"10px 14px",marginBottom:14,fontSize:12,color:"#92400e"}}>⚠️ Al guardar, vuelve a <strong>Solicitado</strong> para revisión del Manager.</div><div style={{display:"flex",flexDirection:"column",gap:11}}><Fld label="Proveedor *" error={err.proveedor}><select style={inp(!!err.proveedor)} value={form.proveedorId} onChange={hS}><option value="">— Seleccioná un proveedor —</option>{lp.map(pv=><option key={pv.id} value={pv.id}>{pv.nombre}</option>)}<option value="__new__">➕ Crear nuevo proveedor...</option></select></Fld><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><Fld label="Categoría *"><select style={inp()} value={form.categoria} onChange={e=>f("categoria",e.target.value)}>{CATEGORIAS.map(c=><option key={c}>{c}</option>)}</select></Fld><Fld label="Tipo *"><select style={inp()} value={form.tipo} onChange={e=>f("tipo",e.target.value)}>{TIPOS.map(t=><option key={t}>{t}</option>)}</select></Fld><Fld label="Moneda *"><select style={inp()} value={form.moneda} onChange={e=>f("moneda",e.target.value)}>{CURRENCIES.map(c=><option key={c}>{c}</option>)}</select></Fld><Fld label="Precio total IVA inc. *" error={err.precio}><input type="number" min="0" step="0.01" style={inp(!!err.precio)} value={form.precio} onChange={e=>f("precio",e.target.value)} placeholder="0.00"/></Fld></div><Fld label="Obra / Proyecto (opcional)"><ObraSelector value={form.obra} onChange={v=>f("obra",v)} obras={obras}/></Fld><Fld label="Descripción *" error={err.descripcion}><textarea style={{...inp(!!err.descripcion),resize:"none",height:64}} value={form.descripcion} onChange={e=>f("descripcion",e.target.value)} placeholder="Descripción breve..."/></Fld><Fld label="Motivo de la edición (opcional)"><textarea style={{...inp(false),resize:"none",height:48,fontSize:12}} value={form.notaEdicion} onChange={e=>f("notaEdicion",e.target.value)} placeholder="¿Por qué se modificó?"/></Fld><div><div style={{fontSize:12,fontWeight:500,color:"#475569",marginBottom:6}}>Actualizar archivos (opcional)</div>{[["cotizacion","Oferta / Cotización"],["factura","Factura"],["comprobante","Comprobante de Pago"]].map(([k,lb])=>(<UF key={k} label={lb} file={files[k]} onChange={v=>fl(k,v)}/>))}</div><div style={{display:"flex",justifyContent:"flex-end",gap:8,paddingTop:8,borderTop:"1px solid #f1f5f9"}}><button onClick={onClose} style={BS("ghost")}>Cancelar</button><button onClick={sub} disabled={saving} style={{...BS("primary"),background:"#d97706"}}>{saving?"Guardando...":"Guardar y Reenviar"}</button></div></div></MB></Ov>);
 }
 
 function Detail({p,user,onClose,onUpdate,onOpenFile,onEdit}){
