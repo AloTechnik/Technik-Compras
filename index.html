@@ -384,7 +384,7 @@ function MainApp({user,onLogout}){
         </aside>
         <main style={{flex:1,overflowY:"auto",padding:"18px 20px"}}>
           {view==="solicitudes"&&<>
-            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",position:"sticky",top:-18,zIndex:10,background:"#f8fafc",margin:"-18px -20px 12px",padding:"14px 20px",borderBottom:"1px solid #e2e8f0",boxShadow:"0 2px 4px rgba(0,0,0,0.04)"}}>
               <div><h2 style={{margin:0,fontSize:15,fontWeight:600,color:"#1e293b"}}>{filterLabel()} <span style={{fontSize:12,fontWeight:400,color:"#94a3b8"}}>({filtered.length})</span></h2>
                 {filter==="SIN_FACTURA"&&<div style={{fontSize:11,color:"#c2410c",marginTop:2}}>Compras recibidas sin factura registrada</div>}
                 {filter==="PAGO_PENDIENTE"&&<div style={{fontSize:11,color:"#9d174d",marginTop:2}}>Compras aprobadas o recibidas con pago pendiente</div>}
@@ -457,6 +457,32 @@ function PCard({p,onClick,af}){
   </div>);
 }
 
+function ProveedorSearchInput({proveedores,proveedorId,proveedorNombre,onSelect,onNew,hasError}){
+  const[q,setQ]=React.useState(proveedorNombre||"");
+  const[show,setShow]=React.useState(false);
+  const filtered=q.trim().length>0
+    ?proveedores.filter(p=>p.nombre&&p.nombre.toLowerCase().includes(q.toLowerCase())).slice(0,12)
+    :proveedores.slice(0,12);
+  const handleChange=v=>{setQ(v);setShow(true);if(!v.trim())onSelect("","");};
+  const handleSelect=pv=>{setQ(pv.nombre);setShow(false);onSelect(pv.id,pv.nombre);};
+  React.useEffect(()=>{setQ(proveedorNombre||"");},[proveedorNombre]);
+  return(<div style={{position:"relative"}}>
+    <input value={q} onChange={e=>handleChange(e.target.value)}
+      onFocus={()=>setShow(true)} onBlur={()=>setTimeout(()=>setShow(false),160)}
+      placeholder="Escribí o buscá un proveedor..." style={inp(hasError)}/>
+    {show&&<div style={{position:"absolute",top:"100%",left:0,right:0,background:"#fff",border:"1px solid #e2e8f0",borderRadius:8,boxShadow:"0 8px 20px rgba(0,0,0,0.12)",zIndex:200,maxHeight:220,overflowY:"auto"}}>
+      {filtered.map((pv,i)=>(
+        <div key={pv.id} onMouseDown={()=>handleSelect(pv)} style={{padding:"8px 12px",fontSize:12,color:"#1e293b",cursor:"pointer",borderBottom:i<filtered.length-1?"1px solid #f1f5f9":"none",background:pv.id===proveedorId?"#eff6ff":"#fff"}} onMouseEnter={e=>e.currentTarget.style.background="#eff6ff"} onMouseLeave={e=>e.currentTarget.style.background=pv.id===proveedorId?"#eff6ff":"#fff"}>
+          <div style={{fontWeight:600}}>{pv.nombre}</div>
+          {pv.razonSocial&&<div style={{fontSize:10,color:"#94a3b8"}}>{pv.razonSocial}</div>}
+        </div>
+      ))}
+      {filtered.length===0&&<div style={{padding:"10px 12px",fontSize:12,color:"#94a3b8"}}>Sin resultados</div>}
+      <div onMouseDown={()=>{onNew();setShow(false);}} style={{padding:"8px 12px",fontSize:12,color:"#1a56db",cursor:"pointer",borderTop:"1px solid #f1f5f9",fontWeight:600}} onMouseEnter={e=>e.currentTarget.style.background="#eff6ff"} onMouseLeave={e=>e.currentTarget.style.background="#fff"}>➕ Crear nuevo proveedor...</div>
+    </div>}
+  </div>);
+}
+
 function PVCard({pv,onEdit,onDel}){return(<div style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:12,padding:"14px 16px"}}><div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8,marginBottom:8}}><div style={{flex:1,minWidth:0}}><div style={{fontWeight:700,fontSize:14,color:"#1e293b"}}>{pv.nombre}</div><div style={{fontSize:12,color:"#64748b",marginTop:1}}>{pv.razonSocial}</div></div><div style={{display:"flex",gap:4}}><IB onClick={onEdit}>✏️</IB><IB onClick={onDel} d>🗑</IB></div></div>{pv.rut&&<IR ic="🪪" lb="RUT" v={pv.rut}/>}{pv.email&&<IR ic="✉️" lb="Email" v={pv.email}/>}{pv.telefono&&<IR ic="📞" lb="Teléfono" v={pv.telefono}/>}{pv.direccion&&<IR ic="📍" lb="Dirección" v={pv.direccion}/>}{pv.contactoNombre&&<IR ic="👤" lb="Contacto" v={pv.contactoNombre}/>}{pv.banco&&<IR ic="🏦" lb="Banco" v={pv.banco}/>}{pv.numeroCuenta&&<IR ic="💳" lb="Cuenta" v={pv.numeroCuenta}/>}</div>);}
 
 function ObraSelector({value,onChange,obras}){
@@ -505,7 +531,7 @@ function NewModal({providers,obras,onClose,onCreate,onCP}){
   const val=()=>{const e={};if(!form.proveedor.trim())e.proveedor="Seleccioná un proveedor";if(!form.precio||+form.precio<=0)e.precio="Monto inválido";if(!form.descripcion.trim())e.descripcion="Requerido";setErr(e);return!Object.keys(e).length;};
   const sub=async()=>{if(!val())return;setSaving(true);await onCreate(form,files);setSaving(false);};
   if(showQP)return(<Ov onClose={()=>setShowQP(false)}><ProvModal onClose={()=>setShowQP(false)} onSave={hQP} quick/></Ov>);
-  return(<Ov onClose={onClose}><MB title="Nueva Solicitud de Compra" onClose={onClose}><div style={{display:"flex",flexDirection:"column",gap:11}}><Fld label="Proveedor *" error={err.proveedor}><select style={inp(!!err.proveedor)} value={form.proveedorId} onChange={hS}><option value="">— Seleccioná un proveedor —</option>{lp.map(pv=><option key={pv.id} value={pv.id}>{pv.nombre}</option>)}<option value="__new__">➕ Crear nuevo proveedor...</option></select></Fld><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><Fld label="Categoría *"><select style={inp()} value={form.categoria} onChange={e=>f("categoria",e.target.value)}>{CATEGORIAS.map(c=><option key={c}>{c}</option>)}</select></Fld><Fld label="Tipo *"><select style={inp()} value={form.tipo} onChange={e=>f("tipo",e.target.value)}>{TIPOS.map(t=><option key={t}>{t}</option>)}</select></Fld><Fld label="Moneda *"><select style={inp()} value={form.moneda} onChange={e=>f("moneda",e.target.value)}>{CURRENCIES.map(c=><option key={c}>{c}</option>)}</select></Fld><Fld label="Precio total IVA inc. *" error={err.precio}><input type="number" min="0" step="0.01" style={inp(!!err.precio)} value={form.precio} onChange={e=>f("precio",e.target.value)} placeholder="0.00"/></Fld></div><Fld label="Obra / Proyecto (opcional)"><ObraSelector value={form.obra} onChange={v=>f("obra",v)} obras={obras}/></Fld><Fld label="Descripción *" error={err.descripcion}><textarea style={{...inp(!!err.descripcion),resize:"none",height:64}} value={form.descripcion} onChange={e=>f("descripcion",e.target.value)} placeholder="Descripción breve..."/></Fld><div><div style={{fontSize:12,fontWeight:500,color:"#475569",marginBottom:6}}>Archivos adjuntos</div>{[["cotizacion","Oferta / Cotización"],["factura","Factura"],["comprobante","Comprobante de Pago"]].map(([k,lb])=>(<UF key={k} label={lb} file={files[k]} onChange={v=>fl(k,v)}/>))}</div><div style={{display:"flex",justifyContent:"flex-end",gap:8,paddingTop:8,borderTop:"1px solid #f1f5f9"}}><button onClick={onClose} style={BS("ghost")}>Cancelar</button><button onClick={sub} disabled={saving} style={BS("primary")}>{saving?"Guardando...":"Enviar Solicitud"}</button></div></div></MB></Ov>);
+  return(<Ov onClose={onClose}><MB title="Nueva Solicitud de Compra" onClose={onClose}><div style={{display:"flex",flexDirection:"column",gap:11}}><Fld label="Proveedor *" error={err.proveedor}><ProveedorSearchInput proveedores={lp} proveedorId={form.proveedorId} proveedorNombre={form.proveedor} onSelect={(id,nombre)=>{f("proveedorId",id);f("proveedor",nombre);}} onNew={()=>setShowQP(true)} hasError={!!err.proveedor}/></Fld><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><Fld label="Categoría *"><select style={inp()} value={form.categoria} onChange={e=>f("categoria",e.target.value)}>{CATEGORIAS.map(c=><option key={c}>{c}</option>)}</select></Fld><Fld label="Tipo *"><select style={inp()} value={form.tipo} onChange={e=>f("tipo",e.target.value)}>{TIPOS.map(t=><option key={t}>{t}</option>)}</select></Fld><Fld label="Moneda *"><select style={inp()} value={form.moneda} onChange={e=>f("moneda",e.target.value)}>{CURRENCIES.map(c=><option key={c}>{c}</option>)}</select></Fld><Fld label="Precio total IVA inc. *" error={err.precio}><input type="number" min="0" step="0.01" style={inp(!!err.precio)} value={form.precio} onChange={e=>f("precio",e.target.value)} placeholder="0.00"/></Fld></div><Fld label="Obra / Proyecto (opcional)"><ObraSelector value={form.obra} onChange={v=>f("obra",v)} obras={obras}/></Fld><Fld label="Descripción *" error={err.descripcion}><textarea style={{...inp(!!err.descripcion),resize:"none",height:64}} value={form.descripcion} onChange={e=>f("descripcion",e.target.value)} placeholder="Descripción breve..."/></Fld><div><div style={{fontSize:12,fontWeight:500,color:"#475569",marginBottom:6}}>Archivos adjuntos</div>{[["cotizacion","Oferta / Cotización"],["factura","Factura"],["comprobante","Comprobante de Pago"]].map(([k,lb])=>(<UF key={k} label={lb} file={files[k]} onChange={v=>fl(k,v)}/>))}</div><div style={{display:"flex",justifyContent:"flex-end",gap:8,paddingTop:8,borderTop:"1px solid #f1f5f9"}}><button onClick={onClose} style={BS("ghost")}>Cancelar</button><button onClick={sub} disabled={saving} style={BS("primary")}>{saving?"Guardando...":"Enviar Solicitud"}</button></div></div></MB></Ov>);
 }
 
 function EditModal({p,providers,obras,role,onClose,onSave,onCP}){
