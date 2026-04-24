@@ -177,6 +177,7 @@ function MainApp({user,onLogout}){
   const[searchProv,setSearchProv]=useState("");
   const[obras,setObras]=useState([]);
   const[soloMias,setSoloMias]=useState(false);
+  const[soloImport,setSoloImport]=useState(false);
 
   useEffect(()=>{load();},[]);
 
@@ -338,7 +339,7 @@ function MainApp({user,onLogout}){
     await load();setEditProv(null);
   };
 
-  const filtered=applyFilter(purchases,filter,search).filter(p=>!soloMias||p.solicitanteId===user.id||p.solicitante===user.name);
+  const filtered=applyFilter(purchases,filter,search).filter(p=>!soloMias||p.solicitanteId===user.id||p.solicitante===user.name).filter(p=>!soloImport||p.origen==="Importación");
   const counts=STATUSES.reduce((a,s)=>({...a,[s]:purchases.filter(p=>p.estado===s).length}),{});
   const cSF=purchases.filter(p=>!p.facturaRecibida&&p.estado==="RECIBIDO").length;
   const cPP=purchases.filter(p=>!p.pagado&&["APROBADO","RECIBIDO"].includes(p.estado)).length;
@@ -397,6 +398,9 @@ function MainApp({user,onLogout}){
               <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar proveedor, obra, descripción..." style={{marginLeft:"auto",border:"1px solid #e2e8f0",borderRadius:7,padding:"5px 10px",fontSize:12,color:"#1e293b",background:"#fff",width:220,outline:"none"}}/>
               <button onClick={()=>setSoloMias(!soloMias)} style={{display:"flex",alignItems:"center",gap:5,padding:"5px 11px",borderRadius:7,border:"1px solid "+(soloMias?"#6ee7b7":"#e2e8f0"),background:soloMias?"#f0fdf4":"#fff",color:soloMias?"#065f46":"#475569",fontSize:12,fontWeight:soloMias?600:400,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>
                 <span style={{fontSize:14}}>{soloMias?"👤":"👥"}</span> {soloMias?"Mis solicitudes":"Todas"}
+              </button>
+              <button onClick={()=>setSoloImport(!soloImport)} style={{display:"flex",alignItems:"center",gap:5,padding:"5px 11px",borderRadius:7,border:"1px solid "+(soloImport?"#7dd3fc":"#e2e8f0"),background:soloImport?"#f0f9ff":"#fff",color:soloImport?"#0369a1":"#475569",fontSize:12,fontWeight:soloImport?600:400,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>
+                <span style={{fontSize:14}}>✈️</span> Importación
               </button>
             </div>
             {filter==="SIN_FACTURA"&&filtered.length>0&&<div style={{background:"#fff7ed",border:"1px solid #fed7aa",borderRadius:10,padding:"10px 14px",marginBottom:12,fontSize:12,color:"#92400e"}}>🧾 Hay <strong>{filtered.length}</strong> solicitud{filtered.length!==1?"es":""} sin factura.</div>}
