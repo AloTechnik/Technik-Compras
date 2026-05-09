@@ -620,11 +620,42 @@ function Detail({p,user,providers,onClose,onUpdate,onOpenFile,onEdit}){
   </div></MB></Ov>);
 }
 
+function BulkProvSearch({providers,proveedorId,proveedorNombre,onSelect,hasError,disabled}){
+  const[q,setQ]=useState(proveedorNombre||"");
+  const[show,setShow]=useState(false);
+  const[rect,setRect]=useState(null);
+  const inputRef=useRef();
+  const filtered=q.trim().length>0?providers.filter(p=>p.nombre&&p.nombre.toLowerCase().includes(q.toLowerCase())).slice(0,12):providers.slice(0,12);
+  const handleFocus=()=>{if(inputRef.current)setRect(inputRef.current.getBoundingClientRect());setShow(true);};
+  const handleChange=v=>{setQ(v);setShow(true);if(inputRef.current)setRect(inputRef.current.getBoundingClientRect());if(!v.trim())onSelect("","");};
+  const handleSelect=pv=>{setQ(pv.nombre);setShow(false);onSelect(pv.id,pv.nombre);};
+  useEffect(()=>{setQ(proveedorNombre||"");},[proveedorNombre]);
+  return(<div>
+    <input ref={inputRef} value={q} onChange={e=>handleChange(e.target.value)} onFocus={handleFocus} onBlur={()=>setTimeout(()=>setShow(false),160)}
+      placeholder="Buscar proveedor..." disabled={disabled}
+      style={{width:"100%",border:"1px solid "+(hasError?"#fca5a5":"#e2e8f0"),borderRadius:6,padding:"5px 7px",fontSize:11,color:"#1e293b",background:disabled?"#f0fdf4":"#fff",outline:"none",boxSizing:"border-box",fontFamily:"inherit"}}/>
+    {show&&rect&&ReactDOM.createPortal(
+      <div style={{position:"fixed",top:rect.bottom+2,left:rect.left,width:Math.max(rect.width,200),background:"#fff",border:"1px solid #e2e8f0",borderRadius:8,boxShadow:"0 8px 20px rgba(0,0,0,0.12)",zIndex:9999,maxHeight:200,overflowY:"auto"}}>
+        {filtered.length===0&&<div style={{padding:"10px 12px",fontSize:12,color:"#94a3b8"}}>Sin resultados</div>}
+        {filtered.map((pv,i)=>(
+          <div key={pv.id} onMouseDown={()=>handleSelect(pv)}
+            style={{padding:"8px 12px",fontSize:12,cursor:"pointer",borderBottom:i<filtered.length-1?"1px solid #f1f5f9":"none",background:pv.id===proveedorId?"#eff6ff":"#fff"}}
+            onMouseEnter={e=>e.currentTarget.style.background="#eff6ff"} onMouseLeave={e=>e.currentTarget.style.background=pv.id===proveedorId?"#eff6ff":"#fff"}>
+            <div style={{fontWeight:600}}>{pv.nombre}</div>
+            {pv.razonSocial&&<div style={{fontSize:10,color:"#94a3b8"}}>{pv.razonSocial}</div>}
+          </div>
+        ))}
+      </div>, document.body
+    )}
+  </div>);
+}
+
 function BulkModal({providers,obras,user,onClose,onRefresh}){
-  const EMPTY=()=>({key:Math.random(),proveedor:"",proveedorId:"",categoria:CATEGORIAS[0],tipo:TIPOS[0],moneda:"UYU",precio:"",descripcion:"",obra:"",origen:"Local",id:null,estado:null,loading:false,error:"",hist:[]});
+  const EMPTY=()=>({key:Math.random(),proveedor:"",proveedorId:"",categoria:CATEGORIAS[0],tipo:TIPOS[0],moneda:"UYU",precio:"",descripcion:"",obra:"",files:{cotizacion:null,factura:null,comprobante:null},id:null,estado:null,loading:false,error:"",hist:[]});
   const[rows,setRows]=useState(()=>Array.from({length:5},EMPTY));
   const[bulkLoading,setBulkLoading]=useState(false);
   const setRow=(idx,ch)=>setRows(prev=>prev.map((r,i)=>i===idx?{...r,...ch}:r));
+  const setRowFile=(idx,k,f)=>setRows(prev=>prev.map((r,i)=>i===idx?{...r,files:{...r.files,[k]:f}}:r));
   const isOk=r=>r.proveedor.trim()&&r.precio&&+r.precio>0&&r.descripcion.trim();
 
   const doAction=async(idx,target,rowOverride)=>{
@@ -636,6 +667,11 @@ function BulkModal({providers,obras,user,onClose,onRefresh}){
       if(!row.id){
         const{data:id,error:ie}=await sb.rpc("next_solicitud_id");
         if(ie)throw ie;
+        const paths={cotizacion:null,factura:null,comprobante:null};
+        const nombres={cotizacion:null,factura:null,comprobante:null};
+        for(const[k,f]of Object.entries(row.files||{})){
+          if(f){const path="solicitudes/"+id+"/"+k;const{error:ue}=await sb.storage.from("archivos").upload(path,f,{upsert:true});if(!ue){paths[k]=path;nombres[k]=f.name;}}
+        }
         const hist=[{en:now,quien:user.name,accion:"Solicitud creada (carga masiva)",nota:""}];
         if(["APROBADO","RECIBIDO"].includes(target))hist.push({en:now,quien:user.name,accion:"Aprobado",nota:""});
         if(target==="RECIBIDO")hist.push({en:now,quien:user.name,accion:"Mercadería recibida",nota:""});
@@ -643,13 +679,17 @@ function BulkModal({providers,obras,user,onClose,onRefresh}){
           id,proveedor_nombre:row.proveedor,proveedor_id:row.proveedorId||null,
           categoria:row.categoria,tipo:row.tipo,obra:row.obra||"",
           moneda:row.moneda,precio:+row.precio,descripcion:row.descripcion,
-          estado:target,factura_recibida:false,pagado:false,origen:row.origen,
+          estado:target,factura_recibida:!!paths.factura,pagado:!!paths.comprobante,
+          origen:"Local",
+          cotizacion_path:paths.cotizacion,cotizacion_nombre:nombres.cotizacion,
+          factura_path:paths.factura,factura_nombre:nombres.factura,
+          comprobante_path:paths.comprobante,comprobante_nombre:nombres.comprobante,
           solicitante_id:user.id,solicitante_nombre:user.name,fecha_creada:now,
           fecha_aprobada:["APROBADO","RECIBIDO"].includes(target)?now:null,
           fecha_recibida:target==="RECIBIDO"?now:null,historial:hist,
         });
         if(error)throw error;
-        setRow(idx,{id,estado:target,loading:false,hist});
+        setRow(idx,{id,estado:target,loading:false,hist,files:{cotizacion:null,factura:null,comprobante:null}});
         return{id,estado:target,hist};
       }else{
         const hist=[...row.hist,{en:now,quien:user.name,accion:target==="APROBADO"?"Aprobado":"Mercadería recibida",nota:""}];
@@ -682,101 +722,129 @@ function BulkModal({providers,obras,user,onClose,onRefresh}){
 
   return(
     <Ov onClose={onClose}>
-      <div style={{background:"#fff",borderRadius:18,boxShadow:"0 24px 60px rgba(0,0,0,0.18)",width:"100%",maxWidth:1180,maxHeight:"92vh",overflow:"hidden",display:"flex",flexDirection:"column"}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 20px",borderBottom:"1px solid #f1f5f9",flexShrink:0,flexWrap:"wrap",gap:8}}>
+      <div style={{background:"#fff",borderRadius:18,boxShadow:"0 24px 60px rgba(0,0,0,0.18)",width:"100%",maxWidth:1060,maxHeight:"92vh",overflow:"hidden",display:"flex",flexDirection:"column"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"11px 16px",borderBottom:"1px solid #f1f5f9",flexShrink:0,flexWrap:"wrap",gap:8,background:"#faf5ff"}}>
           <div>
-            <h2 style={{margin:0,fontSize:15,fontWeight:600,color:"#1e293b"}}>📋 Carga Masiva de Solicitudes</h2>
-            <div style={{fontSize:11,color:"#64748b",marginTop:2}}>{filled} fila{filled!==1?"s":""} completa{filled!==1?"s":""} · {saved} guardada{saved!==1?"s":""}</div>
+            <h2 style={{margin:0,fontSize:14,fontWeight:700,color:"#6b21a8"}}>📋 Carga Masiva de Solicitudes</h2>
+            <div style={{fontSize:10,color:"#9333ea",marginTop:1}}>{filled} completa{filled!==1?"s":""} · {saved} guardada{saved!==1?"s":""} · Todas origen Local 🏠</div>
           </div>
-          <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+          <div style={{display:"flex",gap:5,alignItems:"center",flexWrap:"wrap"}}>
             {filled>0&&<>
-              <button onClick={()=>doAll("SOLICITADO")} disabled={bulkLoading} style={{padding:"5px 11px",borderRadius:7,border:"1px solid #bfdbfe",background:"#eff6ff",color:"#1e40af",fontSize:11,fontWeight:600,cursor:"pointer",opacity:bulkLoading?0.6:1}}>⚡ Generar todas</button>
-              <button onClick={()=>doAll("APROBADO")} disabled={bulkLoading} style={{padding:"5px 11px",borderRadius:7,border:"1px solid #bbf7d0",background:"#f0fdf4",color:"#15803d",fontSize:11,fontWeight:600,cursor:"pointer",opacity:bulkLoading?0.6:1}}>✅ Aprobar todas</button>
-              <button onClick={()=>doAll("RECIBIDO")} disabled={bulkLoading} style={{padding:"5px 11px",borderRadius:7,border:"1px solid #e9d5ff",background:"#faf5ff",color:"#6b21a8",fontSize:11,fontWeight:600,cursor:"pointer",opacity:bulkLoading?0.6:1}}>📦 Recibir todas</button>
-              <div style={{width:1,height:20,background:"#e2e8f0"}}/>
+              <button onClick={()=>doAll("SOLICITADO")} disabled={bulkLoading} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #bfdbfe",background:"#eff6ff",color:"#1e40af",fontSize:11,fontWeight:600,cursor:"pointer",opacity:bulkLoading?0.6:1}}>⚡ Generar todas</button>
+              <button onClick={()=>doAll("APROBADO")} disabled={bulkLoading} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #bbf7d0",background:"#f0fdf4",color:"#15803d",fontSize:11,fontWeight:600,cursor:"pointer",opacity:bulkLoading?0.6:1}}>✅ Aprobar todas</button>
+              <button onClick={()=>doAll("RECIBIDO")} disabled={bulkLoading} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #e9d5ff",background:"#faf5ff",color:"#6b21a8",fontSize:11,fontWeight:600,cursor:"pointer",opacity:bulkLoading?0.6:1}}>📦 Recibir todas</button>
+              <div style={{width:1,height:16,background:"#e2e8f0"}}/>
             </>}
-            <button onClick={()=>{onRefresh();onClose();}} style={{fontSize:12,color:"#64748b",background:"none",border:"1px solid #e2e8f0",borderRadius:7,padding:"5px 13px",cursor:"pointer",fontWeight:500}}>Cerrar</button>
-            <button onClick={onClose} style={{width:30,height:30,borderRadius:7,border:"none",background:"#f1f5f9",cursor:"pointer",fontSize:17,color:"#94a3b8",display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
+            <button onClick={()=>{onRefresh();onClose();}} style={{fontSize:11,color:"#64748b",background:"none",border:"1px solid #e2e8f0",borderRadius:6,padding:"4px 12px",cursor:"pointer"}}>Cerrar</button>
+            <button onClick={onClose} style={{width:27,height:27,borderRadius:6,border:"none",background:"#f1f5f9",cursor:"pointer",fontSize:16,color:"#94a3b8",display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
           </div>
         </div>
-        <div style={{overflowX:"auto",overflowY:"auto",flex:1}}>
-          <table style={{width:"100%",borderCollapse:"collapse",minWidth:1080}}>
-            <thead><tr style={{background:"#f8fafc",borderBottom:"2px solid #e2e8f0",position:"sticky",top:0,zIndex:5}}>
-              {["#","Proveedor *","Categoría","Tipo","Mon.","Precio *","Descripción *","Obra / Proyecto","Estado","Acciones"].map((h,i)=>(
-                <th key={i} style={{padding:"8px 8px",textAlign:"left",fontSize:10,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",background:"#f8fafc"}}>{h}</th>
-              ))}
-            </tr></thead>
-            <tbody>{rows.map((row,idx)=><BulkRow key={row.key} row={row} idx={idx} providers={providers} onChange={ch=>setRow(idx,ch)} onAction={t=>doAction(idx,t)}/>)}</tbody>
-          </table>
+        <div style={{overflowY:"auto",flex:1,padding:"10px 12px",display:"flex",flexDirection:"column",gap:7}}>
+          {rows.map((row,idx)=>(
+            <BulkRow key={row.key} row={row} idx={idx} providers={providers} obras={obras}
+              onChange={ch=>setRow(idx,ch)} onFile={(k,f)=>setRowFile(idx,k,f)} onAction={t=>doAction(idx,t)}/>
+          ))}
+          <div style={{height:240}}/>
         </div>
-        <div style={{padding:"10px 20px",borderTop:"1px solid #f1f5f9",display:"flex",alignItems:"center",gap:10,flexShrink:0,background:"#f8fafc"}}>
-          {rows.length<15?<button onClick={addRow} style={{fontSize:12,color:"#7c3aed",background:"#faf5ff",border:"1px solid #e9d5ff",borderRadius:7,padding:"5px 12px",cursor:"pointer",fontWeight:500}}>+ Agregar fila ({rows.length}/15)</button>:<span style={{fontSize:12,color:"#94a3b8"}}>Máximo 15 filas alcanzado</span>}
-          <div style={{fontSize:11,color:"#94a3b8",marginLeft:"auto"}}>{rows.length}/15 filas · {filled} completa{filled!==1?"s":""}</div>
+        <div style={{padding:"8px 16px",borderTop:"1px solid #f1f5f9",display:"flex",alignItems:"center",gap:8,flexShrink:0,background:"#fafafa"}}>
+          {rows.length<15?<button onClick={addRow} style={{fontSize:11,color:"#7c3aed",background:"#faf5ff",border:"1px solid #e9d5ff",borderRadius:6,padding:"4px 10px",cursor:"pointer",fontWeight:500}}>+ Agregar fila ({rows.length}/15)</button>:<span style={{fontSize:11,color:"#94a3b8"}}>Máximo 15 filas</span>}
+          <div style={{fontSize:10,color:"#94a3b8",marginLeft:"auto"}}>{rows.length}/15 filas · {filled} completa{filled!==1?"s":""}</div>
         </div>
       </div>
     </Ov>
   );
 }
 
-function BulkRow({row,idx,providers,onChange,onAction}){
+function BulkRow({row,idx,providers,obras,onChange,onFile,onAction}){
+  const cotRef=useRef();const factRef=useRef();const compRef=useRef();
   const done=row.estado==="RECIBIDO";
   const st=row.estado?STATUS[row.estado]:null;
   const canGen=!row.estado;
   const canApp=!row.estado||["SOLICITADO","REVISIÓN"].includes(row.estado);
   const canRec=!row.estado||["SOLICITADO","APROBADO","REVISIÓN"].includes(row.estado);
-  const rowBg=done?"#f0fdf4":row.estado==="APROBADO"?"#f7fff9":row.error?"#fff5f5":"#fff";
-  const s=e=>({width:"100%",border:"1px solid "+(e?"#fca5a5":"#e2e8f0"),borderRadius:5,padding:"4px 6px",fontSize:11,color:done?"#6b7280":"#1e293b",background:done?"#f0fdf4":"#fff",outline:"none",boxSizing:"border-box",fontFamily:"inherit"});
+  const cardBg=done?"#f0fdf4":row.estado==="APROBADO"?"#f7fff9":row.error?"#fff5f5":"#fff";
+  const cardBorder=row.error?"#fca5a5":done?"#86efac":row.estado?"#bbf7d0":"#e2e8f0";
+  const si=e=>({width:"100%",border:"1px solid "+(e?"#fca5a5":"#e2e8f0"),borderRadius:6,padding:"5px 7px",fontSize:11,color:done?"#6b7280":"#1e293b",background:done?"#f0fdf4":"#fff",outline:"none",boxSizing:"border-box",fontFamily:"inherit"});
+  const obraListId="obras-"+row.key;
+  const FileBtn=({fkey,icon,label})=>{
+    const ref=fkey==="cotizacion"?cotRef:fkey==="factura"?factRef:compRef;
+    const f=row.files[fkey];
+    return(<div style={{display:"flex",alignItems:"center",gap:3}}>
+      <input ref={ref} type="file" accept=".pdf,image/*" style={{display:"none"}} onChange={e=>onFile(fkey,e.target.files[0]||null)}/>
+      {f?(<div style={{display:"flex",alignItems:"center",gap:2}}>
+        <span style={{fontSize:10,color:"#d97706",maxWidth:72,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={f.name}>{icon} {f.name}</span>
+        <button onClick={()=>onFile(fkey,null)} style={{fontSize:10,color:"#dc2626",background:"none",border:"none",cursor:"pointer",padding:0,flexShrink:0}}>✕</button>
+      </div>):(
+        <button onClick={()=>ref.current.click()} disabled={done} style={{fontSize:10,color:"#64748b",background:"#f8fafc",border:"1px dashed #cbd5e1",borderRadius:5,padding:"3px 7px",cursor:done?"default":"pointer",whiteSpace:"nowrap",opacity:done?0.5:1}}>{icon} {label}</button>
+      )}
+    </div>);
+  };
   return(
-    <tr style={{borderBottom:"1px solid #f1f5f9",background:rowBg,opacity:row.loading?0.65:1,transition:"background 0.2s"}}>
-      <td style={{padding:"5px 8px",color:"#94a3b8",fontWeight:700,fontSize:11,width:28,textAlign:"center"}}>{idx+1}</td>
-      <td style={{padding:"4px 4px",width:165}}>
-        <select value={row.proveedorId} onChange={e=>{const pv=providers.find(p=>p.id===e.target.value);onChange({proveedorId:e.target.value,proveedor:pv?pv.nombre:"",error:"",});}} style={s(!row.proveedorId&&!!row.error)} disabled={done}>
-          <option value="">— Proveedor —</option>
-          {providers.map(pv=><option key={pv.id} value={pv.id}>{pv.nombre}</option>)}
-        </select>
-      </td>
-      <td style={{padding:"4px 4px",width:112}}>
-        <select value={row.categoria} onChange={e=>onChange({categoria:e.target.value})} style={s()} disabled={done}>
-          {CATEGORIAS.map(c=><option key={c}>{c}</option>)}
-        </select>
-      </td>
-      <td style={{padding:"4px 4px",width:75}}>
-        <select value={row.tipo} onChange={e=>onChange({tipo:e.target.value})} style={s()} disabled={done}>
-          {TIPOS.map(t=><option key={t}>{t}</option>)}
-        </select>
-      </td>
-      <td style={{padding:"4px 4px",width:65}}>
-        <select value={row.moneda} onChange={e=>onChange({moneda:e.target.value})} style={s()} disabled={done}>
-          {CURRENCIES.map(c=><option key={c}>{c}</option>)}
-        </select>
-      </td>
-      <td style={{padding:"4px 4px",width:92}}>
-        <input type="number" min="0" step="0.01" value={row.precio} onChange={e=>onChange({precio:e.target.value,error:""})} placeholder="0.00" style={s(!row.precio&&!!row.error)} disabled={done}/>
-      </td>
-      <td style={{padding:"4px 4px",width:200}}>
-        <input value={row.descripcion} onChange={e=>onChange({descripcion:e.target.value,error:""})} placeholder="Descripción breve..." style={s(!row.descripcion&&!!row.error)} disabled={done}/>
-      </td>
-      <td style={{padding:"4px 4px",width:130}}>
-        <input value={row.obra} onChange={e=>onChange({obra:e.target.value})} placeholder="Obra / Proyecto" style={s()} disabled={done}/>
-      </td>
-      <td style={{padding:"4px 8px",width:95,textAlign:"center"}}>
-        {st?(<span style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:20,border:"1px solid "+st.border,background:st.bg,color:st.color,whiteSpace:"nowrap"}}>{st.icon} {st.label}</span>):<span style={{fontSize:10,color:"#cbd5e1"}}>—</span>}
-        {row.id&&<div style={{fontSize:9,color:"#94a3b8",marginTop:1}}>#{row.id}</div>}
-        {row.error&&<div style={{fontSize:9,color:"#dc2626",marginTop:2,lineHeight:1.2,textAlign:"left"}}>{row.error}</div>}
-      </td>
-      <td style={{padding:"4px 8px",minWidth:220}}>
-        {done?<span style={{fontSize:11,color:"#16a34a",fontWeight:600}}>✓ Completado</span>:(
-          <div style={{display:"flex",gap:4,alignItems:"center"}}>
-            {canGen&&<button onClick={()=>onAction("SOLICITADO")} disabled={row.loading} style={{padding:"3px 8px",borderRadius:5,border:"1px solid #bfdbfe",background:"#eff6ff",color:"#1e40af",fontSize:10,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap"}}>⚡ Generar</button>}
-            {canApp&&<button onClick={()=>onAction("APROBADO")} disabled={row.loading} style={{padding:"3px 8px",borderRadius:5,border:"1px solid #bbf7d0",background:"#f0fdf4",color:"#15803d",fontSize:10,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap"}}>✅ Aprobar</button>}
-            {canRec&&<button onClick={()=>onAction("RECIBIDO")} disabled={row.loading} style={{padding:"3px 8px",borderRadius:5,border:"1px solid #e9d5ff",background:"#faf5ff",color:"#6b21a8",fontSize:10,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap"}}>📦 Recibido</button>}
-            {row.loading&&<span style={{fontSize:11,color:"#94a3b8"}}>...</span>}
-          </div>
-        )}
-      </td>
-    </tr>
+    <div style={{background:cardBg,border:"1px solid "+cardBorder,borderRadius:10,padding:"9px 11px",opacity:row.loading?0.7:1,transition:"all 0.15s"}}>
+      <div style={{display:"flex",gap:6,alignItems:"flex-end",marginBottom:6}}>
+        <div style={{width:22,height:22,borderRadius:"50%",background:"#e9d5ff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:"#7c3aed",flexShrink:0,marginBottom:1}}>{idx+1}</div>
+        <div style={{flex:"0 0 210px"}}>
+          <div style={{fontSize:9,fontWeight:600,color:"#94a3b8",marginBottom:2,textTransform:"uppercase",letterSpacing:"0.04em"}}>Proveedor *</div>
+          <BulkProvSearch providers={providers} proveedorId={row.proveedorId} proveedorNombre={row.proveedor}
+            onSelect={(id,nombre)=>onChange({proveedorId:id,proveedor:nombre,error:""})}
+            hasError={!!row.error&&!row.proveedor} disabled={done}/>
+        </div>
+        <div style={{flex:"0 0 108px"}}>
+          <div style={{fontSize:9,fontWeight:600,color:"#94a3b8",marginBottom:2,textTransform:"uppercase",letterSpacing:"0.04em"}}>Categoría</div>
+          <select value={row.categoria} onChange={e=>onChange({categoria:e.target.value})} style={si()} disabled={done}>
+            {CATEGORIAS.map(c=><option key={c}>{c}</option>)}
+          </select>
+        </div>
+        <div style={{flex:"0 0 78px"}}>
+          <div style={{fontSize:9,fontWeight:600,color:"#94a3b8",marginBottom:2,textTransform:"uppercase",letterSpacing:"0.04em"}}>Tipo</div>
+          <select value={row.tipo} onChange={e=>onChange({tipo:e.target.value})} style={si()} disabled={done}>
+            {TIPOS.map(t=><option key={t}>{t}</option>)}
+          </select>
+        </div>
+        <div style={{flex:"0 0 60px"}}>
+          <div style={{fontSize:9,fontWeight:600,color:"#94a3b8",marginBottom:2,textTransform:"uppercase",letterSpacing:"0.04em"}}>Mon.</div>
+          <select value={row.moneda} onChange={e=>onChange({moneda:e.target.value})} style={si()} disabled={done}>
+            {CURRENCIES.map(c=><option key={c}>{c}</option>)}
+          </select>
+        </div>
+        <div style={{flex:"0 0 92px"}}>
+          <div style={{fontSize:9,fontWeight:600,color:"#94a3b8",marginBottom:2,textTransform:"uppercase",letterSpacing:"0.04em"}}>Precio *</div>
+          <input type="number" min="0" step="0.01" value={row.precio} onChange={e=>onChange({precio:e.target.value,error:""})} placeholder="0.00" style={si(!!row.error&&!row.precio)} disabled={done}/>
+        </div>
+        <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:5,flexShrink:0,paddingBottom:1}}>
+          {st?(<span style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:10,fontWeight:600,padding:"2px 8px",borderRadius:20,border:"1px solid "+st.border,background:st.bg,color:st.color,whiteSpace:"nowrap"}}>{st.icon} {st.label}</span>):<span style={{fontSize:10,color:"#cbd5e1"}}>sin guardar</span>}
+          {row.id&&<span style={{fontSize:9,color:"#94a3b8",fontFamily:"monospace",background:"#f1f5f9",padding:"1px 5px",borderRadius:4}}>#{row.id}</span>}
+        </div>
+      </div>
+      <div style={{marginBottom:6,paddingLeft:28}}>
+        <div style={{fontSize:9,fontWeight:600,color:"#94a3b8",marginBottom:2,textTransform:"uppercase",letterSpacing:"0.04em"}}>Descripción *</div>
+        <input value={row.descripcion} onChange={e=>onChange({descripcion:e.target.value,error:""})} placeholder="Descripción breve de la compra..." style={{...si(!!row.error&&!row.descripcion),width:"100%"}} disabled={done}/>
+      </div>
+      <div style={{display:"flex",gap:6,alignItems:"center",paddingLeft:28,flexWrap:"wrap"}}>
+        <div style={{flex:"0 0 226px"}}>
+          <div style={{fontSize:9,fontWeight:600,color:"#94a3b8",marginBottom:2,textTransform:"uppercase",letterSpacing:"0.04em"}}>Obra / Proyecto</div>
+          <datalist id={obraListId}>{obras.map(o=><option key={o.id} value={o.id+" — "+o.cliente_nombre+" — "+(o.descripcion||"").slice(0,40)}/>)}</datalist>
+          <input value={row.obra} onChange={e=>onChange({obra:e.target.value})} placeholder="ID obra o nombre..." list={obraListId} style={si()} disabled={done}/>
+        </div>
+        <div style={{display:"flex",gap:5,alignItems:"center",flex:1,flexWrap:"wrap"}}>
+          <FileBtn fkey="cotizacion" icon="📄" label="Cotización"/>
+          <FileBtn fkey="factura" icon="🧾" label="Factura"/>
+          <FileBtn fkey="comprobante" icon="💳" label="Comprobante"/>
+        </div>
+        <div style={{display:"flex",gap:4,alignItems:"center",marginLeft:"auto",flexShrink:0}}>
+          {done?<span style={{fontSize:11,color:"#16a34a",fontWeight:700}}>✓ Completado</span>:<>
+            {canGen&&<button onClick={()=>onAction("SOLICITADO")} disabled={row.loading} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #bfdbfe",background:"#eff6ff",color:"#1e40af",fontSize:11,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap"}}>⚡ Generar</button>}
+            {canApp&&<button onClick={()=>onAction("APROBADO")} disabled={row.loading} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #bbf7d0",background:"#f0fdf4",color:"#15803d",fontSize:11,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap"}}>✅ Aprobar</button>}
+            {canRec&&<button onClick={()=>onAction("RECIBIDO")} disabled={row.loading} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #e9d5ff",background:"#faf5ff",color:"#6b21a8",fontSize:11,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap"}}>📦 Recibido</button>}
+            {row.loading&&<span style={{fontSize:11,color:"#94a3b8"}}>Guardando...</span>}
+          </>}
+        </div>
+      </div>
+      {row.error&&<div style={{fontSize:10,color:"#dc2626",marginTop:5,paddingLeft:28}}>⚠ {row.error}</div>}
+    </div>
   );
 }
+
 
 function ProvModal({prov,onClose,onSave,onDel,quick}){
   const[form,setForm]=useState({...EMPTY_PROV,...(prov||{})});const[saving,setSaving]=useState(false);const[err,setErr]=useState({});
