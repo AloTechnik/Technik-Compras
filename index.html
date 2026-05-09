@@ -71,7 +71,7 @@ const normPv=pv=>({
 });
 function applyFilter(list,filter,search){
   let r=list;
-  if(filter==="SIN_FACTURA")r=r.filter(p=>!p.facturaRecibida&&["APROBADO","RECIBIDO"].includes(p.estado));
+  if(filter==="SIN_FACTURA")r=r.filter(p=>!p.facturaRecibida&&p.estado==="RECIBIDO");
   else if(filter==="PAGO_PENDIENTE")r=r.filter(p=>!p.pagado&&["APROBADO","RECIBIDO"].includes(p.estado));
   else if(filter!=="TODOS")r=r.filter(p=>p.estado===filter);
   if(search)r=r.filter(p=>[p.proveedor,p.descripcion,p.solicitante,p.categoria,p.obra].some(v=>v?.toLowerCase().includes(search.toLowerCase())));
@@ -171,6 +171,7 @@ function MainApp({user,onLogout}){
   const[selected,setSelected]=useState(null);
   const[editing,setEditing]=useState(null);
   const[showNew,setShowNew]=useState(false);
+  const[showBulk,setShowBulk]=useState(false);
   const[showNP,setShowNP]=useState(false);
   const[editProv,setEditProv]=useState(null);
   const[search,setSearch]=useState("");
@@ -341,7 +342,7 @@ function MainApp({user,onLogout}){
 
   const filtered=applyFilter(purchases,filter,search).filter(p=>!soloMias||p.solicitanteId===user.id||p.solicitante===user.name).filter(p=>!soloImport||p.origen==="Importación");
   const counts=STATUSES.reduce((a,s)=>({...a,[s]:purchases.filter(p=>p.estado===s).length}),{});
-  const cSF=purchases.filter(p=>!p.facturaRecibida&&["APROBADO","RECIBIDO"].includes(p.estado)).length;
+  const cSF=purchases.filter(p=>!p.facturaRecibida&&p.estado==="RECIBIDO").length;
   const cPP=purchases.filter(p=>!p.pagado&&["APROBADO","RECIBIDO"].includes(p.estado)).length;
   const filterLabel=()=>{if(filter==="TODOS")return"Todas las Solicitudes";if(filter==="SIN_FACTURA")return"Sin Factura";if(filter==="PAGO_PENDIENTE")return"Pago Pendiente";return STATUS[filter]?.label;};
 
@@ -376,7 +377,7 @@ function MainApp({user,onLogout}){
             <button onClick={()=>setFilter("PAGO_PENDIENTE")} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 8px",borderRadius:7,border:filter==="PAGO_PENDIENTE"?"1px solid #f9a8d4":"1px solid transparent",cursor:"pointer",textAlign:"left",fontSize:12,background:filter==="PAGO_PENDIENTE"?"#fdf2f8":"none",color:filter==="PAGO_PENDIENTE"?"#9d174d":"#475569",fontWeight:filter==="PAGO_PENDIENTE"?600:400}}>
               <span>💳 Pago Pendiente</span><span style={{fontSize:10,background:cPP>0?"#f9a8d4":"#f1f5f9",color:cPP>0?"#9d174d":"#64748b",borderRadius:10,padding:"1px 6px",fontWeight:cPP>0?600:400}}>{cPP}</span>
             </button>
-            <div style={{marginTop:"auto",paddingTop:10}}><button onClick={()=>setShowNew(true)} style={{width:"100%",background:"#1a56db",color:"#fff",border:"none",borderRadius:9,padding:"9px 0",fontSize:12,fontWeight:600,cursor:"pointer"}}>+ Nueva Solicitud</button></div>
+            <div style={{marginTop:"auto",paddingTop:10,display:"flex",flexDirection:"column",gap:6}}><button onClick={()=>setShowNew(true)} style={{width:"100%",background:"#1a56db",color:"#fff",border:"none",borderRadius:9,padding:"9px 0",fontSize:12,fontWeight:600,cursor:"pointer"}}>+ Nueva Solicitud</button>{CAN_FIN(user.role)&&<button onClick={()=>setShowBulk(true)} style={{width:"100%",background:"#7c3aed",color:"#fff",border:"none",borderRadius:9,padding:"9px 0",fontSize:12,fontWeight:600,cursor:"pointer"}}>📋 Solicitud Masiva</button>}</div>
           </>}
           {view==="proveedores"&&<>
             <button onClick={()=>setShowNP(true)} style={{width:"100%",background:"#1a56db",color:"#fff",border:"none",borderRadius:9,padding:"9px 0",fontSize:12,fontWeight:600,cursor:"pointer",marginBottom:6}}>+ Nuevo Proveedor</button>
@@ -427,6 +428,7 @@ function MainApp({user,onLogout}){
       {selected&&!editing&&<Detail p={selected} user={user} providers={providers} onClose={()=>setSelected(null)} onUpdate={updateP} onOpenFile={openFile} onEdit={()=>setEditing(selected)}/>}
       {editing&&<EditModal p={editing} providers={providers} obras={obras} role={user.role} onClose={()=>setEditing(null)} onSave={editP} onCP={saveProv}/>}
       {(showNP||editProv)&&<ProvModal prov={editProv} onClose={()=>{setShowNP(false);setEditProv(null);}} onSave={saveProv} onDel={editProv?()=>delProv(editProv.id):null}/>}
+      {showBulk&&<BulkModal providers={providers} obras={obras} user={user} onClose={()=>setShowBulk(false)} onRefresh={load}/>}
     </div>
   );
 }
@@ -616,6 +618,164 @@ function Detail({p,user,providers,onClose,onUpdate,onOpenFile,onEdit}){
       </div>
     </div>
   </div></MB></Ov>);
+}
+
+function BulkModal({providers,obras,user,onClose,onRefresh}){
+  const EMPTY=()=>({key:Math.random(),proveedor:"",proveedorId:"",categoria:CATEGORIAS[0],tipo:TIPOS[0],moneda:"UYU",precio:"",descripcion:"",obra:"",origen:"Local",id:null,estado:null,loading:false,error:"",hist:[]});
+  const[rows,setRows]=useState(()=>Array.from({length:5},EMPTY));
+  const[bulkLoading,setBulkLoading]=useState(false);
+  const setRow=(idx,ch)=>setRows(prev=>prev.map((r,i)=>i===idx?{...r,...ch}:r));
+  const isOk=r=>r.proveedor.trim()&&r.precio&&+r.precio>0&&r.descripcion.trim();
+
+  const doAction=async(idx,target,rowOverride)=>{
+    const row=rowOverride||rows[idx];
+    if(!isOk(row)){if(!rowOverride)setRow(idx,{error:"Completá proveedor, precio y descripción"});return false;}
+    if(!rowOverride)setRow(idx,{loading:true,error:""});
+    try{
+      const now=new Date().toISOString();
+      if(!row.id){
+        const{data:id,error:ie}=await sb.rpc("next_solicitud_id");
+        if(ie)throw ie;
+        const hist=[{en:now,quien:user.name,accion:"Solicitud creada (carga masiva)",nota:""}];
+        if(["APROBADO","RECIBIDO"].includes(target))hist.push({en:now,quien:user.name,accion:"Aprobado",nota:""});
+        if(target==="RECIBIDO")hist.push({en:now,quien:user.name,accion:"Mercadería recibida",nota:""});
+        const{error}=await sb.from("solicitudes").insert({
+          id,proveedor_nombre:row.proveedor,proveedor_id:row.proveedorId||null,
+          categoria:row.categoria,tipo:row.tipo,obra:row.obra||"",
+          moneda:row.moneda,precio:+row.precio,descripcion:row.descripcion,
+          estado:target,factura_recibida:false,pagado:false,origen:row.origen,
+          solicitante_id:user.id,solicitante_nombre:user.name,fecha_creada:now,
+          fecha_aprobada:["APROBADO","RECIBIDO"].includes(target)?now:null,
+          fecha_recibida:target==="RECIBIDO"?now:null,historial:hist,
+        });
+        if(error)throw error;
+        setRow(idx,{id,estado:target,loading:false,hist});
+        return{id,estado:target,hist};
+      }else{
+        const hist=[...row.hist,{en:now,quien:user.name,accion:target==="APROBADO"?"Aprobado":"Mercadería recibida",nota:""}];
+        const upd={estado:target,historial:hist,updated_at:now};
+        if(target==="APROBADO")upd.fecha_aprobada=now;
+        if(target==="RECIBIDO")upd.fecha_recibida=now;
+        const{error}=await sb.from("solicitudes").update(upd).eq("id",row.id);
+        if(error)throw error;
+        setRow(idx,{estado:target,loading:false,hist});
+        return{estado:target,hist};
+      }
+    }catch(e){setRow(idx,{loading:false,error:e.message||"Error"});return null;}
+  };
+
+  const doAll=async(target)=>{
+    setBulkLoading(true);
+    const snap=[...rows];
+    for(let i=0;i<snap.length;i++){
+      const r=snap[i];
+      if(!isOk(r)||r.estado==="RECIBIDO"||r.estado===target)continue;
+      await doAction(i,target,r);
+    }
+    setBulkLoading(false);
+    onRefresh();
+  };
+
+  const addRow=()=>{if(rows.length<15)setRows(p=>[...p,EMPTY()]);};
+  const filled=rows.filter(isOk).length;
+  const saved=rows.filter(r=>r.id).length;
+
+  return(
+    <Ov onClose={onClose}>
+      <div style={{background:"#fff",borderRadius:18,boxShadow:"0 24px 60px rgba(0,0,0,0.18)",width:"100%",maxWidth:1180,maxHeight:"92vh",overflow:"hidden",display:"flex",flexDirection:"column"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 20px",borderBottom:"1px solid #f1f5f9",flexShrink:0,flexWrap:"wrap",gap:8}}>
+          <div>
+            <h2 style={{margin:0,fontSize:15,fontWeight:600,color:"#1e293b"}}>📋 Carga Masiva de Solicitudes</h2>
+            <div style={{fontSize:11,color:"#64748b",marginTop:2}}>{filled} fila{filled!==1?"s":""} completa{filled!==1?"s":""} · {saved} guardada{saved!==1?"s":""}</div>
+          </div>
+          <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+            {filled>0&&<>
+              <button onClick={()=>doAll("SOLICITADO")} disabled={bulkLoading} style={{padding:"5px 11px",borderRadius:7,border:"1px solid #bfdbfe",background:"#eff6ff",color:"#1e40af",fontSize:11,fontWeight:600,cursor:"pointer",opacity:bulkLoading?0.6:1}}>⚡ Generar todas</button>
+              <button onClick={()=>doAll("APROBADO")} disabled={bulkLoading} style={{padding:"5px 11px",borderRadius:7,border:"1px solid #bbf7d0",background:"#f0fdf4",color:"#15803d",fontSize:11,fontWeight:600,cursor:"pointer",opacity:bulkLoading?0.6:1}}>✅ Aprobar todas</button>
+              <button onClick={()=>doAll("RECIBIDO")} disabled={bulkLoading} style={{padding:"5px 11px",borderRadius:7,border:"1px solid #e9d5ff",background:"#faf5ff",color:"#6b21a8",fontSize:11,fontWeight:600,cursor:"pointer",opacity:bulkLoading?0.6:1}}>📦 Recibir todas</button>
+              <div style={{width:1,height:20,background:"#e2e8f0"}}/>
+            </>}
+            <button onClick={()=>{onRefresh();onClose();}} style={{fontSize:12,color:"#64748b",background:"none",border:"1px solid #e2e8f0",borderRadius:7,padding:"5px 13px",cursor:"pointer",fontWeight:500}}>Cerrar</button>
+            <button onClick={onClose} style={{width:30,height:30,borderRadius:7,border:"none",background:"#f1f5f9",cursor:"pointer",fontSize:17,color:"#94a3b8",display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
+          </div>
+        </div>
+        <div style={{overflowX:"auto",overflowY:"auto",flex:1}}>
+          <table style={{width:"100%",borderCollapse:"collapse",minWidth:1080}}>
+            <thead><tr style={{background:"#f8fafc",borderBottom:"2px solid #e2e8f0",position:"sticky",top:0,zIndex:5}}>
+              {["#","Proveedor *","Categoría","Tipo","Mon.","Precio *","Descripción *","Obra / Proyecto","Estado","Acciones"].map((h,i)=>(
+                <th key={i} style={{padding:"8px 8px",textAlign:"left",fontSize:10,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",background:"#f8fafc"}}>{h}</th>
+              ))}
+            </tr></thead>
+            <tbody>{rows.map((row,idx)=><BulkRow key={row.key} row={row} idx={idx} providers={providers} onChange={ch=>setRow(idx,ch)} onAction={t=>doAction(idx,t)}/>)}</tbody>
+          </table>
+        </div>
+        <div style={{padding:"10px 20px",borderTop:"1px solid #f1f5f9",display:"flex",alignItems:"center",gap:10,flexShrink:0,background:"#f8fafc"}}>
+          {rows.length<15?<button onClick={addRow} style={{fontSize:12,color:"#7c3aed",background:"#faf5ff",border:"1px solid #e9d5ff",borderRadius:7,padding:"5px 12px",cursor:"pointer",fontWeight:500}}>+ Agregar fila ({rows.length}/15)</button>:<span style={{fontSize:12,color:"#94a3b8"}}>Máximo 15 filas alcanzado</span>}
+          <div style={{fontSize:11,color:"#94a3b8",marginLeft:"auto"}}>{rows.length}/15 filas · {filled} completa{filled!==1?"s":""}</div>
+        </div>
+      </div>
+    </Ov>
+  );
+}
+
+function BulkRow({row,idx,providers,onChange,onAction}){
+  const done=row.estado==="RECIBIDO";
+  const st=row.estado?STATUS[row.estado]:null;
+  const canGen=!row.estado;
+  const canApp=!row.estado||["SOLICITADO","REVISIÓN"].includes(row.estado);
+  const canRec=!row.estado||["SOLICITADO","APROBADO","REVISIÓN"].includes(row.estado);
+  const rowBg=done?"#f0fdf4":row.estado==="APROBADO"?"#f7fff9":row.error?"#fff5f5":"#fff";
+  const s=e=>({width:"100%",border:"1px solid "+(e?"#fca5a5":"#e2e8f0"),borderRadius:5,padding:"4px 6px",fontSize:11,color:done?"#6b7280":"#1e293b",background:done?"#f0fdf4":"#fff",outline:"none",boxSizing:"border-box",fontFamily:"inherit"});
+  return(
+    <tr style={{borderBottom:"1px solid #f1f5f9",background:rowBg,opacity:row.loading?0.65:1,transition:"background 0.2s"}}>
+      <td style={{padding:"5px 8px",color:"#94a3b8",fontWeight:700,fontSize:11,width:28,textAlign:"center"}}>{idx+1}</td>
+      <td style={{padding:"4px 4px",width:165}}>
+        <select value={row.proveedorId} onChange={e=>{const pv=providers.find(p=>p.id===e.target.value);onChange({proveedorId:e.target.value,proveedor:pv?pv.nombre:"",error:"",});}} style={s(!row.proveedorId&&!!row.error)} disabled={done}>
+          <option value="">— Proveedor —</option>
+          {providers.map(pv=><option key={pv.id} value={pv.id}>{pv.nombre}</option>)}
+        </select>
+      </td>
+      <td style={{padding:"4px 4px",width:112}}>
+        <select value={row.categoria} onChange={e=>onChange({categoria:e.target.value})} style={s()} disabled={done}>
+          {CATEGORIAS.map(c=><option key={c}>{c}</option>)}
+        </select>
+      </td>
+      <td style={{padding:"4px 4px",width:75}}>
+        <select value={row.tipo} onChange={e=>onChange({tipo:e.target.value})} style={s()} disabled={done}>
+          {TIPOS.map(t=><option key={t}>{t}</option>)}
+        </select>
+      </td>
+      <td style={{padding:"4px 4px",width:65}}>
+        <select value={row.moneda} onChange={e=>onChange({moneda:e.target.value})} style={s()} disabled={done}>
+          {CURRENCIES.map(c=><option key={c}>{c}</option>)}
+        </select>
+      </td>
+      <td style={{padding:"4px 4px",width:92}}>
+        <input type="number" min="0" step="0.01" value={row.precio} onChange={e=>onChange({precio:e.target.value,error:""})} placeholder="0.00" style={s(!row.precio&&!!row.error)} disabled={done}/>
+      </td>
+      <td style={{padding:"4px 4px",width:200}}>
+        <input value={row.descripcion} onChange={e=>onChange({descripcion:e.target.value,error:""})} placeholder="Descripción breve..." style={s(!row.descripcion&&!!row.error)} disabled={done}/>
+      </td>
+      <td style={{padding:"4px 4px",width:130}}>
+        <input value={row.obra} onChange={e=>onChange({obra:e.target.value})} placeholder="Obra / Proyecto" style={s()} disabled={done}/>
+      </td>
+      <td style={{padding:"4px 8px",width:95,textAlign:"center"}}>
+        {st?(<span style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:20,border:"1px solid "+st.border,background:st.bg,color:st.color,whiteSpace:"nowrap"}}>{st.icon} {st.label}</span>):<span style={{fontSize:10,color:"#cbd5e1"}}>—</span>}
+        {row.id&&<div style={{fontSize:9,color:"#94a3b8",marginTop:1}}>#{row.id}</div>}
+        {row.error&&<div style={{fontSize:9,color:"#dc2626",marginTop:2,lineHeight:1.2,textAlign:"left"}}>{row.error}</div>}
+      </td>
+      <td style={{padding:"4px 8px",minWidth:220}}>
+        {done?<span style={{fontSize:11,color:"#16a34a",fontWeight:600}}>✓ Completado</span>:(
+          <div style={{display:"flex",gap:4,alignItems:"center"}}>
+            {canGen&&<button onClick={()=>onAction("SOLICITADO")} disabled={row.loading} style={{padding:"3px 8px",borderRadius:5,border:"1px solid #bfdbfe",background:"#eff6ff",color:"#1e40af",fontSize:10,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap"}}>⚡ Generar</button>}
+            {canApp&&<button onClick={()=>onAction("APROBADO")} disabled={row.loading} style={{padding:"3px 8px",borderRadius:5,border:"1px solid #bbf7d0",background:"#f0fdf4",color:"#15803d",fontSize:10,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap"}}>✅ Aprobar</button>}
+            {canRec&&<button onClick={()=>onAction("RECIBIDO")} disabled={row.loading} style={{padding:"3px 8px",borderRadius:5,border:"1px solid #e9d5ff",background:"#faf5ff",color:"#6b21a8",fontSize:10,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap"}}>📦 Recibido</button>}
+            {row.loading&&<span style={{fontSize:11,color:"#94a3b8"}}>...</span>}
+          </div>
+        )}
+      </td>
+    </tr>
+  );
 }
 
 function ProvModal({prov,onClose,onSave,onDel,quick}){
