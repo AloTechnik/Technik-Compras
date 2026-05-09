@@ -719,9 +719,10 @@ function BulkModal({providers,obras,user,onClose,onRefresh}){
   const addRow=()=>{if(rows.length<15)setRows(p=>[...p,EMPTY()]);};
   const filled=rows.filter(isOk).length;
   const saved=rows.filter(r=>r.id).length;
+  const handleClose=()=>{onRefresh();onClose();};
 
   return(
-    <Ov onClose={onClose}>
+    <Ov onClose={handleClose}>
       <div style={{background:"#fff",borderRadius:18,boxShadow:"0 24px 60px rgba(0,0,0,0.18)",width:"100%",maxWidth:1060,maxHeight:"92vh",overflow:"hidden",display:"flex",flexDirection:"column"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"11px 16px",borderBottom:"1px solid #f1f5f9",flexShrink:0,flexWrap:"wrap",gap:8,background:"#faf5ff"}}>
           <div>
@@ -735,8 +736,8 @@ function BulkModal({providers,obras,user,onClose,onRefresh}){
               <button onClick={()=>doAll("RECIBIDO")} disabled={bulkLoading} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #e9d5ff",background:"#faf5ff",color:"#6b21a8",fontSize:11,fontWeight:600,cursor:"pointer",opacity:bulkLoading?0.6:1}}>📦 Recibir todas</button>
               <div style={{width:1,height:16,background:"#e2e8f0"}}/>
             </>}
-            <button onClick={()=>{onRefresh();onClose();}} style={{fontSize:11,color:"#64748b",background:"none",border:"1px solid #e2e8f0",borderRadius:6,padding:"4px 12px",cursor:"pointer"}}>Cerrar</button>
-            <button onClick={onClose} style={{width:27,height:27,borderRadius:6,border:"none",background:"#f1f5f9",cursor:"pointer",fontSize:16,color:"#94a3b8",display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
+            <button onClick={handleClose} style={{fontSize:11,color:"#64748b",background:"none",border:"1px solid #e2e8f0",borderRadius:6,padding:"4px 12px",cursor:"pointer"}}>Cerrar</button>
+            <button onClick={handleClose} style={{width:27,height:27,borderRadius:6,border:"none",background:"#f1f5f9",cursor:"pointer",fontSize:16,color:"#94a3b8",display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
           </div>
         </div>
         <div style={{overflowY:"auto",flex:1,padding:"10px 12px",display:"flex",flexDirection:"column",gap:7}}>
