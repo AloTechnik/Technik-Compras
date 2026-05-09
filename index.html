@@ -71,7 +71,7 @@ const normPv=pv=>({
 });
 function applyFilter(list,filter,search){
   let r=list;
-  if(filter==="SIN_FACTURA")r=r.filter(p=>!p.facturaRecibida&&p.estado==="RECIBIDO");
+  if(filter==="SIN_FACTURA")r=r.filter(p=>!p.facturaRecibida&&["APROBADO","RECIBIDO"].includes(p.estado));
   else if(filter==="PAGO_PENDIENTE")r=r.filter(p=>!p.pagado&&["APROBADO","RECIBIDO"].includes(p.estado));
   else if(filter!=="TODOS")r=r.filter(p=>p.estado===filter);
   if(search)r=r.filter(p=>[p.proveedor,p.descripcion,p.solicitante,p.categoria,p.obra].some(v=>v?.toLowerCase().includes(search.toLowerCase())));
@@ -342,7 +342,7 @@ function MainApp({user,onLogout}){
 
   const filtered=applyFilter(purchases,filter,search).filter(p=>!soloMias||p.solicitanteId===user.id||p.solicitante===user.name).filter(p=>!soloImport||p.origen==="Importación");
   const counts=STATUSES.reduce((a,s)=>({...a,[s]:purchases.filter(p=>p.estado===s).length}),{});
-  const cSF=purchases.filter(p=>!p.facturaRecibida&&p.estado==="RECIBIDO").length;
+  const cSF=purchases.filter(p=>!p.facturaRecibida&&["APROBADO","RECIBIDO"].includes(p.estado)).length;
   const cPP=purchases.filter(p=>!p.pagado&&["APROBADO","RECIBIDO"].includes(p.estado)).length;
   const filterLabel=()=>{if(filter==="TODOS")return"Todas las Solicitudes";if(filter==="SIN_FACTURA")return"Sin Factura";if(filter==="PAGO_PENDIENTE")return"Pago Pendiente";return STATUS[filter]?.label;};
 
