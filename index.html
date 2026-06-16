@@ -60,6 +60,8 @@ const norm=p=>({
   duaPath:p.dua_path, duaNombre:p.dua_nombre,
   facturasExtra:p.facturas_extra||[],
   comprobantesExtra:p.comprobantes_extra||[],
+  pagos:p.pagos||[],
+  montoAcordado:p.monto_acordado||null,
   solicitante:p.solicitante_nombre, solicitanteId:p.solicitante_id,
   fechaCreada:p.fecha_creada, fechaAprobada:p.fecha_aprobada, fechaRecibida:p.fecha_recibida,
   historial:p.historial||[],
@@ -272,6 +274,8 @@ function MainApp({user,onLogout}){
       if("estado" in changes)upd.estado=changes.estado;
       if("facturaRecibida" in changes)upd.factura_recibida=changes.facturaRecibida;
       if("pagado" in changes)upd.pagado=changes.pagado;
+      if("pagos" in changes)upd.pagos=changes.pagos;
+      if("montoAcordado" in changes)upd.monto_acordado=changes.montoAcordado;
       if(fm.factura&&fm.factura.name)upd.factura_recibida=true;
       if(fm.comprobante&&fm.comprobante.name)upd.pagado=true;
       if(changes.estado==="APROBADO")upd.fecha_aprobada=now;
@@ -598,6 +602,11 @@ function Detail({p,user,providers,onClose,onUpdate,onOpenFile,onEdit}){
   const[note,setNote]=useState("");const[saving,setSaving]=useState(false);const[nf,setNf]=useState({cotizacion:null,factura:null,comprobante:null,dua:null});
   const[extraFacturas,setExtraFacturas]=useState([]);
   const[extraComprobantes,setExtraComprobantes]=useState([]);
+  const[montoAcordadoEdit,setMontoAcordadoEdit]=useState(null);
+  const[nuevoPagoMonto,setNuevoPagoMonto]=useState("");
+  const[nuevoPagoFecha,setNuevoPagoFecha]=useState("");
+  const[nuevoPagoFile,setNuevoPagoFile]=useState(null);
+  const pagoFileRef=useRef();
   const factRef=useRef();const compRef=useRef();
   const role=user.role;const canEdit=CAN_EDIT(p)||role==="ADMINISTRACIÓN";
   const act=async(changes,accion)=>{setSaving(true);await onUpdate(p.id,changes,{accion,nota:note},nf,{facturas:extraFacturas,comprobantes:extraComprobantes});setNote("");setNf({cotizacion:null,factura:null,comprobante:null});setExtraFacturas([]);setExtraComprobantes([]);setSaving(false);};
@@ -626,12 +635,79 @@ function Detail({p,user,providers,onClose,onUpdate,onOpenFile,onEdit}){
           </div>
         </div>
         <div style={{marginBottom:7}}>
-          <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:4}}>
-            <span style={{color:"#64748b",width:148,flexShrink:0,fontSize:12}}>💳 Comprobantes ({allComprobantes.length+(nf.comprobante?1:0)+extraComprobantes.length})</span>
-            <div style={{flex:1}}>{allComprobantes.map((f,i)=><button key={i} onClick={()=>onOpenFile(f.path)} style={{display:"block",background:"none",border:"none",cursor:"pointer",padding:0,color:"#1a56db",fontSize:12,textDecoration:"underline",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:180,marginBottom:2}}>📎 {f.nombre}</button>)}{nf.comprobante&&<div style={{fontSize:11,color:"#d97706",marginBottom:2}}>📎 {nf.comprobante.name} (pendiente)</div>}{extraComprobantes.map((f,i)=><div key={i} style={{fontSize:11,color:"#d97706",marginBottom:2}}>📎 {f.name} (pendiente)</div>)}{!allComprobantes.length&&!nf.comprobante&&!extraComprobantes.length&&<span style={{color:"#cbd5e1",fontSize:12}}>Sin archivo</span>}</div>
-            <input ref={compRef} type="file" accept=".pdf,image/*" style={{display:"none"}} onChange={e=>{const f=e.target.files[0];if(!f)return;if(!nf.comprobante&&allComprobantes.length===0)setNf(x=>({...x,comprobante:f}));else setExtraComprobantes(prev=>[...prev,f]);e.target.value="";}}/>
-            <button onClick={()=>compRef.current.click()} style={{fontSize:11,color:"#1a56db",background:"none",border:"1px dashed #93c5fd",borderRadius:6,padding:"3px 10px",cursor:"pointer",flexShrink:0}}>+ Agregar</button>
+          <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:6}}>
+            <span style={{color:"#64748b",fontSize:12,fontWeight:600}}>💳 Pagos</span>
           </div>
+          {/* Monto acordado */}
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,padding:"7px 10px",background:"#f0fdf4",borderRadius:8,border:"1px solid #bbf7d0"}}>
+            <span style={{fontSize:11,color:"#475569",flexShrink:0}}>Monto acordado</span>
+            {CAN_FIN(role)?<input type="number" min="0" value={montoAcordadoEdit??p.montoAcordado??""} onChange={e=>setMontoAcordadoEdit(e.target.value===""?null:+e.target.value)} onBlur={async()=>{if(montoAcordadoEdit!==null&&montoAcordadoEdit!==(p.montoAcordado??null)){await act({montoAcordado:montoAcordadoEdit},"Monto acordado actualizado");}}} placeholder={fmtM(p.precio,p.moneda)} style={{flex:1,border:"none",borderBottom:"1px dashed #86efac",outline:"none",fontSize:12,fontWeight:600,color:"#15803d",background:"transparent",textAlign:"right"}}/>:<span style={{flex:1,textAlign:"right",fontSize:12,fontWeight:600,color:"#15803d"}}>{p.montoAcordado?fmtM(p.montoAcordado,p.moneda):fmtM(p.precio,p.moneda)}</span>}
+            <span style={{fontSize:11,color:"#64748b",flexShrink:0}}>{p.moneda}</span>
+          </div>
+          {/* Lista de pagos */}
+          {(()=>{
+            const pagosActuales=[...(p.pagos||[])];
+            // migrar pago legacy si existe y no hay pagos nuevos
+            if(pagosActuales.length===0&&p.comprobantePath){
+              pagosActuales.push({id:1,monto:p.precio,fecha:p.fechaCreada,path:p.comprobantePath,nombre:p.comprobanteNombre||"Comprobante",confirmado:p.pagado});
+            }
+            const montoAcordado=p.montoAcordado||p.precio||0;
+            const totalPagado=pagosActuales.filter(pg=>pg.confirmado).reduce((s,pg)=>s+(+pg.monto||0),0);
+            const saldo=montoAcordado-totalPagado;
+            return(<>
+              {pagosActuales.map((pg,i)=>(
+                <div key={i} style={{display:"grid",gridTemplateColumns:"1fr 90px 100px auto",gap:6,alignItems:"center",padding:"5px 8px",background:pg.confirmado?"#f0fdf4":"#fefce8",borderRadius:7,border:"1px solid "+(pg.confirmado?"#bbf7d0":"#fde047"),marginBottom:5}}>
+                  <div style={{display:"flex",flexDirection:"column",gap:1}}>
+                    <span style={{fontSize:10,color:"#94a3b8"}}>Pago {i+1}</span>
+                    {pg.path?<button onClick={()=>onOpenFile(pg.path)} style={{background:"none",border:"none",cursor:"pointer",padding:0,color:"#1a56db",fontSize:11,textDecoration:"underline",textAlign:"left",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:130}}>📎 {pg.nombre}</button>:<span style={{fontSize:11,color:"#cbd5e1"}}>Sin comprobante</span>}
+                  </div>
+                  <div style={{fontSize:12,fontWeight:600,color:"#1e293b",textAlign:"right"}}>{pg.monto?fmtM(pg.monto,p.moneda):"—"}</div>
+                  <div style={{fontSize:11,color:"#64748b",textAlign:"center"}}>{pg.fecha?fmtD(pg.fecha):"—"}</div>
+                  <span style={{fontSize:11,fontWeight:600,color:pg.confirmado?"#15803d":"#d97706"}}>{pg.confirmado?"✓ Conf.":"⏳ Pend."}</span>
+                </div>
+              ))}
+              {/* Resumen saldo */}
+              {pagosActuales.length>0&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginTop:4,marginBottom:6}}>
+                <div style={{padding:"5px 8px",background:"#f0fdf4",borderRadius:6,border:"1px solid #bbf7d0",textAlign:"center"}}>
+                  <div style={{fontSize:9,color:"#94a3b8",marginBottom:1}}>Pagado</div>
+                  <div style={{fontSize:12,fontWeight:700,color:"#15803d"}}>{fmtM(totalPagado,p.moneda)}</div>
+                </div>
+                <div style={{padding:"5px 8px",background:saldo<=0?"#f0fdf4":"#fef9c3",borderRadius:6,border:"1px solid "+(saldo<=0?"#bbf7d0":"#fde047"),textAlign:"center"}}>
+                  <div style={{fontSize:9,color:"#94a3b8",marginBottom:1}}>Saldo pendiente</div>
+                  <div style={{fontSize:12,fontWeight:700,color:saldo<=0?"#15803d":"#b45309"}}>{saldo<=0?"✓ Cancelado":fmtM(saldo,p.moneda)}</div>
+                </div>
+              </div>}
+              {/* Agregar nuevo pago */}
+              {CAN_FIN(role)&&pagosActuales.length<3&&<div style={{padding:"8px",background:"#f8fafc",borderRadius:7,border:"1px dashed #cbd5e1",marginTop:4}}>
+                <div style={{fontSize:10,color:"#94a3b8",marginBottom:5,fontWeight:600}}>+ Nuevo pago</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 90px",gap:6,marginBottom:5}}>
+                  <input type="number" min="0" placeholder={`Monto (${p.moneda})`} value={nuevoPagoMonto} onChange={e=>setNuevoPagoMonto(e.target.value)} style={{border:"1px solid #e2e8f0",borderRadius:5,padding:"4px 7px",fontSize:11,outline:"none"}}/>
+                  <input type="date" value={nuevoPagoFecha} onChange={e=>setNuevoPagoFecha(e.target.value)} style={{border:"1px solid #e2e8f0",borderRadius:5,padding:"4px 7px",fontSize:11,outline:"none"}}/>
+                </div>
+                <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                  <input ref={pagoFileRef} type="file" accept=".pdf,image/*" style={{display:"none"}} onChange={e=>{setNuevoPagoFile(e.target.files[0]||null);e.target.value="";}}/>
+                  <button onClick={()=>pagoFileRef.current.click()} style={{fontSize:11,color:"#1a56db",background:"none",border:"1px dashed #93c5fd",borderRadius:5,padding:"3px 9px",cursor:"pointer",flexShrink:0}}>{nuevoPagoFile?"📎 "+nuevoPagoFile.name:"📎 Adjuntar"}</button>
+                  <button disabled={!nuevoPagoMonto||saving} onClick={async()=>{
+                    setSaving(true);
+                    let path=null,nombre=null;
+                    if(nuevoPagoFile){
+                      path="solicitudes/"+p.id+"/pago_"+(pagosActuales.length+1)+"_"+Date.now()+"_"+nuevoPagoFile.name.replace(/\s/g,"_");
+                      await sb.storage.from("archivos").upload(path,nuevoPagoFile);
+                      nombre=nuevoPagoFile.name;
+                    }
+                    const nuevoPago={id:Date.now(),monto:+nuevoPagoMonto,fecha:nuevoPagoFecha||new Date().toISOString().split("T")[0],path,nombre,confirmado:true};
+                    const pagosNuevos=[...pagosActuales,nuevoPago];
+                    const todoPagado=pagosNuevos.filter(pg=>pg.confirmado).reduce((s,pg)=>s+(+pg.monto||0),0)>=(montoAcordado*0.99);
+                    await act({pagos:pagosNuevos,pagado:todoPagado},"Pago registrado"+(nuevoPagoMonto?" — "+fmtM(+nuevoPagoMonto,p.moneda):""));
+                    setNuevoPagoMonto("");setNuevoPagoFecha("");setNuevoPagoFile(null);
+                    setSaving(false);
+                  }} style={{flex:1,padding:"4px 10px",background:"#059669",color:"#fff",border:"none",borderRadius:5,fontSize:11,fontWeight:600,cursor:"pointer",opacity:(!nuevoPagoMonto||saving)?0.5:1}}>
+                    {saving?"...":"✓ Registrar pago"}
+                  </button>
+                </div>
+              </div>}
+            </>);
+          })()}
         </div>
         {p.origen==="Importación"&&<AttRow label="DUA" existingPath={p.duaPath} existingNombre={p.duaNombre} pending={nf.dua} onOpen={()=>onOpenFile(p.duaPath)} onFile={v=>setNf(x=>({...x,dua:v}))}/>}
       </div>
