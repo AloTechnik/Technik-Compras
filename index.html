@@ -695,31 +695,29 @@ function Detail({p,user,providers,onClose,onUpdate,onOpenFile,onEdit}){
                       <button onClick={()=>document.getElementById("compFileChg"+i).click()} style={{fontSize:10,color:"#94a3b8",background:"none",border:"none",cursor:"pointer",textDecoration:"underline"}}>Cambiar</button></>}
                     </div>
                   </>):(i===pagosActuales.length&&CAN_FIN(role)&&saldo>0?<div>
-                    <div style={{display:"grid",gridTemplateColumns:"1fr",gap:6,marginBottom:5}}>
-                      <input type="number" min="0" max={montoRef} placeholder={"Monto ("+p.moneda+")"} value={nuevoPagoMonto!==""?nuevoPagoMonto:sugerido} onChange={e=>{const v=Math.min(+e.target.value,montoRef);setNuevoPagoMonto(String(v));}} style={{border:"1px solid #e2e8f0",borderRadius:5,padding:"4px 8px",fontSize:11,outline:"none",color:"#334155"}}/>
-                    </div>
-
-                    <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                      <input ref={pagoFileRef} type="file" accept=".pdf,image/*" style={{display:"none"}} onChange={e=>{setNuevoPagoFile(e.target.files[0]||null);e.target.value="";}}/>
-                      <button onClick={()=>pagoFileRef.current.click()} style={{fontSize:11,color:"#1a56db",background:"none",border:"1px dashed #93c5fd",borderRadius:6,padding:"2px 9px",cursor:"pointer",flexShrink:0}}>{nuevoPagoFile?"📎 "+nuevoPagoFile.name:"+ Adjuntar comprobante"}</button>
-                      <button disabled={saving} onClick={async()=>{
-                        const montoEfectivo=nuevoPagoMonto!==""?+nuevoPagoMonto:sugerido;
-                        if(!montoEfectivo||montoEfectivo<=0){setSaving(false);return;}
-                        setSaving(true);
-                        let path=null,nombre=null;
-                        if(nuevoPagoFile){
-                          path="solicitudes/"+p.id+"/pago_"+(pagosActuales.length+1)+"_"+Date.now()+"_"+nuevoPagoFile.name.replace(/\s/g,"_");
-                          await sb.storage.from("archivos").upload(path,nuevoPagoFile);
-                          nombre=nuevoPagoFile.name;
-                        }
-                        const nuevo={id:Date.now(),monto:montoEfectivo,fecha:new Date().toISOString().split("T")[0],path,nombre,confirmado:true};
-                        const pagosNuevos=[...pagosActuales,nuevo];
-                        const totPag=pagosNuevos.filter(pg=>pg.confirmado).reduce((s,pg)=>s+(+pg.monto||0),0);
-                        await act({pagos:pagosNuevos,pagado:totPag>=(montoRef*0.99)},"Pago "+(pagosActuales.length+1)+" registrado — "+fmtM(montoEfectivo,p.moneda));
-                        setNuevoPagoMonto("");setNuevoPagoFile(null);setSaving(false);
-                      }} style={{padding:"4px 12px",background:"#1a56db",color:"#fff",border:"none",borderRadius:5,fontSize:11,fontWeight:600,cursor:"pointer",opacity:saving?0.4:1,flexShrink:0}}>
-                        {saving?"...":"✓ Confirmar"}
-                      </button>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:4}}>
+                      <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                        <input ref={pagoFileRef} type="file" accept=".pdf,image/*" style={{display:"none"}} onChange={e=>{setNuevoPagoFile(e.target.files[0]||null);e.target.value="";}}/>                        <button onClick={()=>pagoFileRef.current.click()} style={{fontSize:11,color:"#1a56db",background:"none",border:"1px dashed #93c5fd",borderRadius:6,padding:"2px 9px",cursor:"pointer",flexShrink:0}}>{nuevoPagoFile?"📎 "+nuevoPagoFile.name:"+ Adjuntar comprobante"}</button>
+                        <button disabled={saving} onClick={async()=>{
+                          const montoEfectivo=nuevoPagoMonto!==""?+nuevoPagoMonto:sugerido;
+                          if(!montoEfectivo||montoEfectivo<=0){setSaving(false);return;}
+                          setSaving(true);
+                          let path=null,nombre=null;
+                          if(nuevoPagoFile){
+                            path="solicitudes/"+p.id+"/pago_"+(pagosActuales.length+1)+"_"+Date.now()+"_"+nuevoPagoFile.name.replace(/\s/g,"_");
+                            await sb.storage.from("archivos").upload(path,nuevoPagoFile);
+                            nombre=nuevoPagoFile.name;
+                          }
+                          const nuevo={id:Date.now(),monto:montoEfectivo,fecha:new Date().toISOString().split("T")[0],path,nombre,confirmado:true};
+                          const pagosNuevos=[...pagosActuales,nuevo];
+                          const totPag=pagosNuevos.filter(pg=>pg.confirmado).reduce((s,pg)=>s+(+pg.monto||0),0);
+                          await act({pagos:pagosNuevos,pagado:totPag>=(montoRef*0.99)},"Pago "+(pagosActuales.length+1)+" registrado — "+fmtM(montoEfectivo,p.moneda));
+                          setNuevoPagoMonto("");setNuevoPagoFile(null);setSaving(false);
+                        }} style={{padding:"4px 12px",background:"#1a56db",color:"#fff",border:"none",borderRadius:5,fontSize:11,fontWeight:600,cursor:"pointer",opacity:saving?0.4:1,flexShrink:0}}>
+                          {saving?"...":"✓ Confirmar"}
+                        </button>
+                      </div>
+                      <input type="number" min="0" max={montoRef} placeholder="0" value={nuevoPagoMonto!==""?nuevoPagoMonto:sugerido} onChange={e=>{const v=Math.min(+e.target.value,montoRef);setNuevoPagoMonto(String(v));}} style={{border:"1px solid #e2e8f0",borderRadius:5,padding:"4px 8px",fontSize:12,fontWeight:600,outline:"none",color:colorM(p.moneda),textAlign:"right",width:110}}/>
                     </div>
                   </div>:<span style={{fontSize:11,color:"#cbd5e1"}}>{saldo<=0?"Pagado en su totalidad":"—"}</span>)}
                 </div>);
