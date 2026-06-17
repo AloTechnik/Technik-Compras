@@ -417,11 +417,11 @@ function MainApp({user,onLogout}){
               </button>
             ))}
             <div style={{fontSize:10,fontWeight:600,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.06em",padding:"12px 6px 4px"}}>Pendientes de gestión</div>
-            <button onClick={()=>setFilter("SIN_FACTURA")} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 8px",borderRadius:7,border:filter==="SIN_FACTURA"?"1px solid #fed7aa":"1px solid transparent",cursor:"pointer",textAlign:"left",fontSize:12,background:filter==="SIN_FACTURA"?"#fff7ed":"none",color:filter==="SIN_FACTURA"?"#c2410c":"#475569",fontWeight:filter==="SIN_FACTURA"?600:400}}>
-              <span>🧾 Sin Factura</span><span style={{fontSize:10,background:cSF>0?"#fed7aa":"#f1f5f9",color:cSF>0?"#c2410c":"#64748b",borderRadius:10,padding:"1px 6px",fontWeight:cSF>0?600:400}}>{cSF}</span>
-            </button>
             <button onClick={()=>setFilter("PAGO_PENDIENTE")} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 8px",borderRadius:7,border:filter==="PAGO_PENDIENTE"?"1px solid #f9a8d4":"1px solid transparent",cursor:"pointer",textAlign:"left",fontSize:12,background:filter==="PAGO_PENDIENTE"?"#fdf2f8":"none",color:filter==="PAGO_PENDIENTE"?"#9d174d":"#475569",fontWeight:filter==="PAGO_PENDIENTE"?600:400}}>
               <span>💳 Pago Pendiente</span><span style={{fontSize:10,background:cPP>0?"#f9a8d4":"#f1f5f9",color:cPP>0?"#9d174d":"#64748b",borderRadius:10,padding:"1px 6px",fontWeight:cPP>0?600:400}}>{cPP}</span>
+            </button>
+            <button onClick={()=>setFilter("SIN_FACTURA")} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 8px",borderRadius:7,border:filter==="SIN_FACTURA"?"1px solid #fed7aa":"1px solid transparent",cursor:"pointer",textAlign:"left",fontSize:12,background:filter==="SIN_FACTURA"?"#fff7ed":"none",color:filter==="SIN_FACTURA"?"#c2410c":"#475569",fontWeight:filter==="SIN_FACTURA"?600:400}}>
+              <span>🧾 Sin Factura</span><span style={{fontSize:10,background:cSF>0?"#fed7aa":"#f1f5f9",color:cSF>0?"#c2410c":"#64748b",borderRadius:10,padding:"1px 6px",fontWeight:cSF>0?600:400}}>{cSF}</span>
             </button>
             <button onClick={()=>setFilter("PENDIENTE_RECEPCION")} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 8px",borderRadius:7,border:filter==="PENDIENTE_RECEPCION"?"1px solid #fde68a":"1px solid transparent",cursor:"pointer",textAlign:"left",fontSize:12,background:filter==="PENDIENTE_RECEPCION"?"#fffbeb":"none",color:filter==="PENDIENTE_RECEPCION"?"#92400e":"#475569",fontWeight:filter==="PENDIENTE_RECEPCION"?600:400}}>
               <span>📦 Recepción Pendiente</span><span style={{fontSize:10,background:cPR>0?"#fef3c7":"#f1f5f9",color:cPR>0?"#92400e":"#64748b",borderRadius:10,padding:"1px 6px",fontWeight:cPR>0?600:400}}>{cPR}</span>
