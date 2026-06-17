@@ -423,8 +423,8 @@ function MainApp({user,onLogout}){
             <button onClick={()=>setFilter("PAGO_PENDIENTE")} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 8px",borderRadius:7,border:filter==="PAGO_PENDIENTE"?"1px solid #f9a8d4":"1px solid transparent",cursor:"pointer",textAlign:"left",fontSize:12,background:filter==="PAGO_PENDIENTE"?"#fdf2f8":"none",color:filter==="PAGO_PENDIENTE"?"#9d174d":"#475569",fontWeight:filter==="PAGO_PENDIENTE"?600:400}}>
               <span>💳 Pago Pendiente</span><span style={{fontSize:10,background:cPP>0?"#f9a8d4":"#f1f5f9",color:cPP>0?"#9d174d":"#64748b",borderRadius:10,padding:"1px 6px",fontWeight:cPP>0?600:400}}>{cPP}</span>
             </button>
-            <button onClick={()=>setFilter("PENDIENTE_RECEPCION")} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 8px",borderRadius:7,border:filter==="PENDIENTE_RECEPCION"?"1px solid #bfdbfe":"1px solid transparent",cursor:"pointer",textAlign:"left",fontSize:12,background:filter==="PENDIENTE_RECEPCION"?"#eff6ff":"none",color:filter==="PENDIENTE_RECEPCION"?"#1d4ed8":"#475569",fontWeight:filter==="PENDIENTE_RECEPCION"?600:400}}>
-              <span>📦 Pendiente de Recepción</span><span style={{fontSize:10,background:cPR>0?"#bfdbfe":"#f1f5f9",color:cPR>0?"#1d4ed8":"#64748b",borderRadius:10,padding:"1px 6px",fontWeight:cPR>0?600:400}}>{cPR}</span>
+            <button onClick={()=>setFilter("PENDIENTE_RECEPCION")} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 8px",borderRadius:7,border:filter==="PENDIENTE_RECEPCION"?"1px solid #fde68a":"1px solid transparent",cursor:"pointer",textAlign:"left",fontSize:12,background:filter==="PENDIENTE_RECEPCION"?"#fffbeb":"none",color:filter==="PENDIENTE_RECEPCION"?"#92400e":"#475569",fontWeight:filter==="PENDIENTE_RECEPCION"?600:400}}>
+              <span>📦 Recepción Pendiente</span><span style={{fontSize:10,background:cPR>0?"#fef3c7":"#f1f5f9",color:cPR>0?"#92400e":"#64748b",borderRadius:10,padding:"1px 6px",fontWeight:cPR>0?600:400}}>{cPR}</span>
             </button>
             <div style={{marginTop:"auto",paddingTop:10,display:"flex",flexDirection:"column",gap:6}}><button onClick={()=>setShowNew(true)} style={{width:"100%",background:"#1a56db",color:"#fff",border:"none",borderRadius:9,padding:"9px 0",fontSize:12,fontWeight:600,cursor:"pointer"}}>+ Nueva Solicitud</button>{CAN_FIN(user.role)&&<button onClick={()=>setShowBulk(true)} style={{width:"100%",background:"#7c3aed",color:"#fff",border:"none",borderRadius:9,padding:"9px 0",fontSize:12,fontWeight:600,cursor:"pointer"}}>📋 Solicitud Masiva</button>}</div>
           </>}
@@ -444,7 +444,7 @@ function MainApp({user,onLogout}){
               <div><h2 style={{margin:0,fontSize:15,fontWeight:600,color:"#1e293b"}}>{filterLabel()} <span style={{fontSize:12,fontWeight:400,color:"#94a3b8"}}>({filtered.length})</span></h2>
                 {filter==="SIN_FACTURA"&&<div style={{fontSize:11,color:"#c2410c",marginTop:2}}>Compras recibidas sin factura registrada</div>}
                 {filter==="PAGO_PENDIENTE"&&<div style={{fontSize:11,color:"#9d174d",marginTop:2}}>Compras aprobadas o recibidas con pago pendiente</div>}
-                {filter==="PENDIENTE_RECEPCION"&&<div style={{fontSize:11,color:"#1d4ed8",marginTop:2}}>Compras aprobadas aún no recibidas</div>}
+                {filter==="PENDIENTE_RECEPCION"&&<div style={{fontSize:11,color:"#92400e",marginTop:2}}>Compras aprobadas aún no recibidas</div>}
               </div>
               <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar proveedor, obra, descripción..." style={{marginLeft:"auto",border:"1px solid #e2e8f0",borderRadius:7,padding:"5px 10px",fontSize:12,color:"#1e293b",background:"#fff",width:220,outline:"none"}}/>
               <button onClick={()=>setSoloMias(!soloMias)} style={{display:"flex",alignItems:"center",gap:5,padding:"5px 11px",borderRadius:7,border:"1px solid "+(soloMias?"#6ee7b7":"#e2e8f0"),background:soloMias?"#f0fdf4":"#fff",color:soloMias?"#065f46":"#475569",fontSize:12,fontWeight:soloMias?600:400,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>
@@ -459,7 +459,7 @@ function MainApp({user,onLogout}){
             </div>
             {filter==="SIN_FACTURA"&&filtered.length>0&&<div style={{background:"#fff7ed",border:"1px solid #fed7aa",borderRadius:10,padding:"10px 14px",marginBottom:12,fontSize:12,color:"#92400e"}}>🧾 Hay <strong>{filtered.length}</strong> solicitud{filtered.length!==1?"es":""} sin factura.</div>}
             {filter==="PAGO_PENDIENTE"&&filtered.length>0&&<div style={{background:"#fdf2f8",border:"1px solid #f9a8d4",borderRadius:10,padding:"10px 14px",marginBottom:12,fontSize:12,color:"#9d174d"}}>💳 Hay <strong>{filtered.length}</strong> pago{filtered.length!==1?"s":""} pendiente{filtered.length!==1?"s":""}.</div>}
-            {filter==="PENDIENTE_RECEPCION"&&filtered.length>0&&<div style={{background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:10,padding:"10px 14px",marginBottom:12,fontSize:12,color:"#1e40af"}}>📦 Hay <strong>{filtered.length}</strong> compra{filtered.length!==1?"s":""} aprobada{filtered.length!==1?"s":""} pendiente{filtered.length!==1?"s":""} de recepción.</div>}
+            {filter==="PENDIENTE_RECEPCION"&&filtered.length>0&&<div style={{background:"#fffbeb",border:"1px solid #fde68a",borderRadius:10,padding:"10px 14px",marginBottom:12,fontSize:12,color:"#92400e"}}>📦 Hay <strong>{filtered.length}</strong> compra{filtered.length!==1?"s":""} aprobada{filtered.length!==1?"s":""} pendiente{filtered.length!==1?"s":""} de recepción.</div>}
             {loading?<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:180,color:"#94a3b8"}}>Cargando...</div>
             :filtered.length===0?<div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:240}}>
               <div style={{fontSize:44,marginBottom:10}}>{filter==="SIN_FACTURA"?"🧾":filter==="PAGO_PENDIENTE"?"💳":"📋"}</div>
@@ -489,7 +489,8 @@ function MainApp({user,onLogout}){
 
 function PCard({p,onClick,af}){
   const st=STATUS[p.estado];const hF=af==="SIN_FACTURA"&&!p.facturaRecibida;const hP=af==="PAGO_PENDIENTE"&&!p.pagado;const ed=CAN_EDIT(p);
-  return(<div onClick={onClick} style={{background:"#fff",border:"1px solid "+(hF?"#fed7aa":hP?"#f9a8d4":"#e2e8f0"),borderRadius:12,padding:"12px 14px",cursor:"pointer"}} onMouseEnter={e=>{e.currentTarget.style.borderColor="#93c5fd";e.currentTarget.style.boxShadow="0 4px 14px rgba(26,86,219,0.08)";}} onMouseLeave={e=>{e.currentTarget.style.borderColor=hF?"#fed7aa":hP?"#f9a8d4":"#e2e8f0";e.currentTarget.style.boxShadow="none";}}>
+  const isComplete=p.estado==="RECIBIDO"&&p.facturaRecibida&&p.pagado;
+  return(<div onClick={onClick} style={{background:isComplete?"#f0fdf4":"#fff",border:"1px solid "+(isComplete?"#bbf7d0":hF?"#fed7aa":hP?"#f9a8d4":"#e2e8f0"),borderRadius:12,padding:"12px 14px",cursor:"pointer"}} onMouseEnter={e=>{e.currentTarget.style.borderColor="#93c5fd";e.currentTarget.style.boxShadow="0 4px 14px rgba(26,86,219,0.08)";}} onMouseLeave={e=>{e.currentTarget.style.borderColor=isComplete?"#bbf7d0":hF?"#fed7aa":hP?"#f9a8d4":"#e2e8f0";e.currentTarget.style.boxShadow="none";}}>
     <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12}}>
       <div style={{flex:1,minWidth:0}}>
         <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:5,flexWrap:"wrap"}}>
