@@ -41,7 +41,8 @@ const STATUS={
 const STATUSES=["SOLICITADO","APROBADO","RECHAZADO","REVISIÓN","RECIBIDO"];
 const EMPTY_PROV={nombre:"",razonSocial:"",rut:"",direccion:"",email:"",telefono:"",contactoNombre:"",banco:"",numeroCuenta:""};
 
-const fmtM=(n,c)=>c+" "+new Intl.NumberFormat("es-UY",{minimumFractionDigits:2}).format(+n);
+const fmtM=(n,cur)=>cur+" "+new Intl.NumberFormat("es-UY",{minimumFractionDigits:2}).format(+n);
+const colorM=cur=>cur==="USD"?"#dc2626":cur==="EUR"?"#16a34a":"#1e293b";
 const fmtDT=iso=>iso?new Date(iso).toLocaleString("es-UY",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}):"—";
 const fmtD=iso=>iso?new Date(iso).toLocaleDateString("es-UY",{day:"2-digit",month:"2-digit",year:"numeric"}):"—";
 const CAN_APP=r=>r==="MANAGER"||r==="ADMINISTRACIÓN";
@@ -78,6 +79,7 @@ function applyFilter(list,filter,search){
   let r=list;
   if(filter==="SIN_FACTURA")r=r.filter(p=>!p.facturaRecibida&&["APROBADO","RECIBIDO"].includes(p.estado));
   else if(filter==="PAGO_PENDIENTE")r=r.filter(p=>!p.pagado&&["APROBADO","RECIBIDO"].includes(p.estado));
+  else if(filter==="PENDIENTE_RECEPCION")r=r.filter(p=>p.estado==="APROBADO");
   else if(filter!=="TODOS")r=r.filter(p=>p.estado===filter);
   if(search)r=r.filter(p=>[p.proveedor,p.descripcion,p.solicitante,p.categoria,p.obra].some(v=>v?.toLowerCase().includes(search.toLowerCase())));
   return r;
@@ -357,7 +359,8 @@ function MainApp({user,onLogout}){
   const counts=STATUSES.reduce((a,s)=>({...a,[s]:purchases.filter(p=>p.estado===s).length}),{});
   const cSF=purchases.filter(p=>!p.facturaRecibida&&["APROBADO","RECIBIDO"].includes(p.estado)).length;
   const cPP=purchases.filter(p=>!p.pagado&&["APROBADO","RECIBIDO"].includes(p.estado)).length;
-  const filterLabel=()=>{if(filter==="TODOS")return"Todas las Solicitudes";if(filter==="SIN_FACTURA")return"Sin Factura";if(filter==="PAGO_PENDIENTE")return"Pago Pendiente";return STATUS[filter]?.label;};
+  const cPR=purchases.filter(p=>p.estado==="APROBADO").length;
+  const filterLabel=()=>{if(filter==="TODOS")return"Todas las Solicitudes";if(filter==="SIN_FACTURA")return"Sin Factura";if(filter==="PAGO_PENDIENTE")return"Pago Pendiente";if(filter==="PENDIENTE_RECEPCION")return"Pendiente de Recepción";return STATUS[filter]?.label;};
 
   const exportarExcel=()=>{
     const sorted=[...filtered].sort((a,b)=>{const order=["UYU","USD","EUR"];return(order.indexOf(a.moneda)||99)-(order.indexOf(b.moneda)||99);});
@@ -420,6 +423,9 @@ function MainApp({user,onLogout}){
             <button onClick={()=>setFilter("PAGO_PENDIENTE")} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 8px",borderRadius:7,border:filter==="PAGO_PENDIENTE"?"1px solid #f9a8d4":"1px solid transparent",cursor:"pointer",textAlign:"left",fontSize:12,background:filter==="PAGO_PENDIENTE"?"#fdf2f8":"none",color:filter==="PAGO_PENDIENTE"?"#9d174d":"#475569",fontWeight:filter==="PAGO_PENDIENTE"?600:400}}>
               <span>💳 Pago Pendiente</span><span style={{fontSize:10,background:cPP>0?"#f9a8d4":"#f1f5f9",color:cPP>0?"#9d174d":"#64748b",borderRadius:10,padding:"1px 6px",fontWeight:cPP>0?600:400}}>{cPP}</span>
             </button>
+            <button onClick={()=>setFilter("PENDIENTE_RECEPCION")} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 8px",borderRadius:7,border:filter==="PENDIENTE_RECEPCION"?"1px solid #bfdbfe":"1px solid transparent",cursor:"pointer",textAlign:"left",fontSize:12,background:filter==="PENDIENTE_RECEPCION"?"#eff6ff":"none",color:filter==="PENDIENTE_RECEPCION"?"#1d4ed8":"#475569",fontWeight:filter==="PENDIENTE_RECEPCION"?600:400}}>
+              <span>📦 Pendiente de Recepción</span><span style={{fontSize:10,background:cPR>0?"#bfdbfe":"#f1f5f9",color:cPR>0?"#1d4ed8":"#64748b",borderRadius:10,padding:"1px 6px",fontWeight:cPR>0?600:400}}>{cPR}</span>
+            </button>
             <div style={{marginTop:"auto",paddingTop:10,display:"flex",flexDirection:"column",gap:6}}><button onClick={()=>setShowNew(true)} style={{width:"100%",background:"#1a56db",color:"#fff",border:"none",borderRadius:9,padding:"9px 0",fontSize:12,fontWeight:600,cursor:"pointer"}}>+ Nueva Solicitud</button>{CAN_FIN(user.role)&&<button onClick={()=>setShowBulk(true)} style={{width:"100%",background:"#7c3aed",color:"#fff",border:"none",borderRadius:9,padding:"9px 0",fontSize:12,fontWeight:600,cursor:"pointer"}}>📋 Solicitud Masiva</button>}</div>
           </>}
           {view==="proveedores"&&<>
@@ -438,6 +444,7 @@ function MainApp({user,onLogout}){
               <div><h2 style={{margin:0,fontSize:15,fontWeight:600,color:"#1e293b"}}>{filterLabel()} <span style={{fontSize:12,fontWeight:400,color:"#94a3b8"}}>({filtered.length})</span></h2>
                 {filter==="SIN_FACTURA"&&<div style={{fontSize:11,color:"#c2410c",marginTop:2}}>Compras recibidas sin factura registrada</div>}
                 {filter==="PAGO_PENDIENTE"&&<div style={{fontSize:11,color:"#9d174d",marginTop:2}}>Compras aprobadas o recibidas con pago pendiente</div>}
+                {filter==="PENDIENTE_RECEPCION"&&<div style={{fontSize:11,color:"#1d4ed8",marginTop:2}}>Compras aprobadas aún no recibidas</div>}
               </div>
               <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar proveedor, obra, descripción..." style={{marginLeft:"auto",border:"1px solid #e2e8f0",borderRadius:7,padding:"5px 10px",fontSize:12,color:"#1e293b",background:"#fff",width:220,outline:"none"}}/>
               <button onClick={()=>setSoloMias(!soloMias)} style={{display:"flex",alignItems:"center",gap:5,padding:"5px 11px",borderRadius:7,border:"1px solid "+(soloMias?"#6ee7b7":"#e2e8f0"),background:soloMias?"#f0fdf4":"#fff",color:soloMias?"#065f46":"#475569",fontSize:12,fontWeight:soloMias?600:400,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>
@@ -452,6 +459,7 @@ function MainApp({user,onLogout}){
             </div>
             {filter==="SIN_FACTURA"&&filtered.length>0&&<div style={{background:"#fff7ed",border:"1px solid #fed7aa",borderRadius:10,padding:"10px 14px",marginBottom:12,fontSize:12,color:"#92400e"}}>🧾 Hay <strong>{filtered.length}</strong> solicitud{filtered.length!==1?"es":""} sin factura.</div>}
             {filter==="PAGO_PENDIENTE"&&filtered.length>0&&<div style={{background:"#fdf2f8",border:"1px solid #f9a8d4",borderRadius:10,padding:"10px 14px",marginBottom:12,fontSize:12,color:"#9d174d"}}>💳 Hay <strong>{filtered.length}</strong> pago{filtered.length!==1?"s":""} pendiente{filtered.length!==1?"s":""}.</div>}
+            {filter==="PENDIENTE_RECEPCION"&&filtered.length>0&&<div style={{background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:10,padding:"10px 14px",marginBottom:12,fontSize:12,color:"#1e40af"}}>📦 Hay <strong>{filtered.length}</strong> compra{filtered.length!==1?"s":""} aprobada{filtered.length!==1?"s":""} pendiente{filtered.length!==1?"s":""} de recepción.</div>}
             {loading?<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:180,color:"#94a3b8"}}>Cargando...</div>
             :filtered.length===0?<div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:240}}>
               <div style={{fontSize:44,marginBottom:10}}>{filter==="SIN_FACTURA"?"🧾":filter==="PAGO_PENDIENTE"?"💳":"📋"}</div>
@@ -642,8 +650,8 @@ function Detail({p,user,providers,onClose,onUpdate,onOpenFile,onEdit}){
             <button onClick={()=>factRef.current.click()} style={{fontSize:11,color:"#1a56db",background:"none",border:"1px dashed #93c5fd",borderRadius:6,padding:"3px 10px",cursor:"pointer",flexShrink:0}}>+ Agregar</button>
           </div>
         </div>
-        <div style={{marginBottom:7,border:"1px solid #e2e8f0",borderRadius:10,padding:"12px 14px",background:"#fff"}}>
-          <div style={{fontSize:10,fontWeight:600,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:10}}>Pagos</div>
+        <div style={{marginBottom:7,border:"1px solid #e2e8f0",borderRadius:10,padding:"12px 14px",background:"#f8fafc"}}>
+          <div style={{fontSize:10,fontWeight:600,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:10}}>💳 Pagos</div>
           {p.requiereAnticipo&&<div style={{marginBottom:10,padding:"7px 10px",background:"#fefce8",borderRadius:7,border:"1px solid #fde047",display:"flex",gap:7,alignItems:"flex-start"}}>
             <span>⚠️</span><div><div style={{fontSize:11,fontWeight:600,color:"#92400e"}}>Requiere anticipo de pago</div>{p.condicionesPago&&<div style={{fontSize:11,color:"#78350f",marginTop:1}}>{p.condicionesPago}</div>}</div>
           </div>}
@@ -662,7 +670,7 @@ function Detail({p,user,providers,onClose,onUpdate,onOpenFile,onEdit}){
             return(<>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingBottom:8,marginBottom:8,borderBottom:"1px solid #f1f5f9"}}>
                 <span style={{fontSize:11,color:"#64748b"}}>Precio total</span>
-                <span style={{fontSize:13,fontWeight:700,color:"#1e293b"}}>{fmtM(montoRef,p.moneda)}</span>
+                <span style={{fontSize:13,fontWeight:700,color:colorM(p.moneda)}}>{fmtM(montoRef,p.moneda)}</span>
               </div>
               {[0,1].map(i=>{
                 const pg=pagosActuales[i];
@@ -672,7 +680,7 @@ function Detail({p,user,providers,onClose,onUpdate,onOpenFile,onEdit}){
                   <div style={{fontSize:10,fontWeight:600,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:6}}>Pago {i+1}{i===1&&pagosActuales.length<2?" (pendiente)":""}</div>
                   {pg?(<>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-                      <span style={{fontSize:12,color:"#334155"}}>{fmtM(pg.monto,p.moneda)}</span>
+                      <span style={{fontSize:12,fontWeight:600,color:colorM(p.moneda)}}>{fmtM(pg.monto,p.moneda)}</span>
                       <div style={{display:"flex",alignItems:"center",gap:8}}>
                         {pg.fecha&&<span style={{fontSize:11,color:"#94a3b8"}}>{fmtD(pg.fecha)}</span>}
                         <span style={{fontSize:11,fontWeight:600,color:pg.confirmado?"#15803d":"#94a3b8"}}>{pg.confirmado?"✓ Confirmado":"Pendiente"}</span>
@@ -716,7 +724,7 @@ function Detail({p,user,providers,onClose,onUpdate,onOpenFile,onEdit}){
               })}
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingTop:8,borderTop:"1px solid #f1f5f9"}}>
                 <span style={{fontSize:11,color:"#64748b"}}>Saldo pendiente</span>
-                <span style={{fontSize:12,fontWeight:700,color:saldo<=0?"#15803d":"#334155"}}>{saldo<=0?"✓ Cancelado":fmtM(saldo,p.moneda)}</span>
+                <span style={{fontSize:12,fontWeight:700,color:saldo<=0?"#15803d":colorM(p.moneda)}}>{saldo<=0?"✓ Cancelado":fmtM(saldo,p.moneda)}</span>
               </div>
             </>);
           })()}
