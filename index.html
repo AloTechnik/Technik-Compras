@@ -677,11 +677,10 @@ function Detail({p,user,providers,onClose,onUpdate,onOpenFile,onEdit}){
                 const pg=pagosActuales[i];
                 const esSaldo=i===1&&!pg;
                 const sugerido=i===0?montoRef:Math.max(0,saldo);
-                return(<div key={i} style={{marginBottom:10,paddingBottom:10,borderBottom:i===0?"1px solid #f1f5f9":"none"}}>
-                  <div style={{fontSize:10,fontWeight:600,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:6}}>{i===0?"1er Pago":"2do Pago"}{i===1&&pagosActuales.length<2?" — Pendiente":""}</div>
+                return(<div key={i} style={{marginBottom:4,paddingBottom:4,borderBottom:i===0?"1px solid #f1f5f9":"none"}}>
                   {pg?(<>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-                      <span style={{fontSize:12,fontWeight:600,color:colorM(p.moneda)}}>{fmtM(pg.monto,p.moneda)}</span>
+                      <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:10,fontWeight:600,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.04em"}}>{i===0?"1er Pago":"2do Pago"}</span><span style={{fontSize:12,fontWeight:600,color:colorM(p.moneda)}}>{fmtM(pg.monto,p.moneda)}</span></div>
                       <div style={{display:"flex",alignItems:"center",gap:8}}>
                         {pg.fecha&&<span style={{fontSize:11,color:"#94a3b8"}}>{fmtD(pg.fecha)}</span>}
                         <span style={{fontSize:11,fontWeight:600,color:pg.confirmado?"#15803d":"#94a3b8"}}>{pg.confirmado?"✓ Confirmado":"Pendiente"}</span>
@@ -720,7 +719,7 @@ function Detail({p,user,providers,onClose,onUpdate,onOpenFile,onEdit}){
                       </div>
                       <input type="text" inputMode="decimal" placeholder={fmtM(sugerido,p.moneda)} value={nuevoPagoMonto} onFocus={e=>{if(!nuevoPagoMonto)setNuevoPagoMonto(String(sugerido));}} onChange={e=>{const raw=e.target.value.replace(/[^0-9.]/g,"");const v=Math.min(+raw||0,montoRef);setNuevoPagoMonto(raw===""?"":String(v));}} onBlur={e=>{if(nuevoPagoMonto){const v=Math.min(+nuevoPagoMonto||0,montoRef);setNuevoPagoMonto(v>0?new Intl.NumberFormat("es-UY",{minimumFractionDigits:2,maximumFractionDigits:2}).format(v):"");}}} style={{border:"1px solid #e2e8f0",borderRadius:5,padding:"4px 8px",fontSize:12,fontWeight:600,outline:"none",color:colorM(p.moneda),textAlign:"right",width:110}}/>
                     </div>
-                  </div>:<span style={{fontSize:11,color:"#cbd5e1"}}>{saldo<=0?"Pagado en su totalidad":"—"}</span>)}
+                  </div>:(saldo>0?<span style={{fontSize:10,fontWeight:600,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.04em"}}>{i===0?"1er Pago":"2do Pago"} — Pendiente</span>:null))}
                 </div>);
               })}
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingTop:8,borderTop:"1px solid #f1f5f9"}}>
