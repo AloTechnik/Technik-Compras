@@ -676,7 +676,7 @@ function Detail({p,user,providers,onClose,onUpdate,onOpenFile,onEdit}){
               {[0,1].map(i=>{
                 const pg=pagosActuales[i];
                 const esSaldo=i===1&&!pg;
-                const sugerido=i===1?Math.max(0,saldo):null;
+                const sugerido=i===0?montoRef:Math.max(0,saldo);
                 return(<div key={i} style={{marginBottom:10,paddingBottom:10,borderBottom:i===0?"1px solid #f1f5f9":"none"}}>
                   <div style={{fontSize:10,fontWeight:600,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:6}}>Pago {i+1}{i===1&&pagosActuales.length<2?" (pendiente)":""}</div>
                   {pg?(<>
@@ -694,16 +694,18 @@ function Detail({p,user,providers,onClose,onUpdate,onOpenFile,onEdit}){
                       {pg.path&&CAN_FIN(role)&&<><input id={"compFileChg"+i} type="file" accept=".pdf,image/*" style={{display:"none"}} onChange={e=>{if(e.target.files[0])uploadComprobante(i,e.target.files[0]);e.target.value="";}}/>
                       <button onClick={()=>document.getElementById("compFileChg"+i).click()} style={{fontSize:10,color:"#94a3b8",background:"none",border:"none",cursor:"pointer",textDecoration:"underline"}}>Cambiar</button></>}
                     </div>
-                  </>):(CAN_FIN(role)&&saldo>0?<div>
+                  </>):(i===pagosActuales.length&&CAN_FIN(role)&&saldo>0?<div>
                     <div style={{display:"grid",gridTemplateColumns:"1fr 110px",gap:6,marginBottom:5}}>
-                      <input type="number" min="0" placeholder={"Monto ("+p.moneda+")"} value={nuevoPagoMonto} onChange={e=>setNuevoPagoMonto(e.target.value)} style={{border:"1px solid #e2e8f0",borderRadius:5,padding:"4px 8px",fontSize:11,outline:"none",color:"#334155"}}/>
+                      <input type="number" min="0" max={montoRef} placeholder={"Monto ("+p.moneda+")"} value={nuevoPagoMonto!==""?nuevoPagoMonto:sugerido} onChange={e=>{const v=Math.min(+e.target.value,montoRef);setNuevoPagoMonto(String(v));}} style={{border:"1px solid #e2e8f0",borderRadius:5,padding:"4px 8px",fontSize:11,outline:"none",color:"#334155"}}/>
                       <input type="date" value={nuevoPagoFecha} onChange={e=>setNuevoPagoFecha(e.target.value)} style={{border:"1px solid #e2e8f0",borderRadius:5,padding:"4px 8px",fontSize:11,outline:"none",color:"#334155"}}/>
                     </div>
-                    {sugerido>0&&!nuevoPagoMonto&&<div style={{fontSize:10,color:"#94a3b8",marginBottom:5}}>Saldo sugerido: {fmtM(sugerido,p.moneda)} <button onClick={()=>setNuevoPagoMonto(String(sugerido))} style={{color:"#1a56db",background:"none",border:"none",cursor:"pointer",fontSize:10,textDecoration:"underline"}}>usar</button></div>}
+
                     <div style={{display:"flex",gap:6,alignItems:"center"}}>
                       <input ref={pagoFileRef} type="file" accept=".pdf,image/*" style={{display:"none"}} onChange={e=>{setNuevoPagoFile(e.target.files[0]||null);e.target.value="";}}/>
                       <button onClick={()=>pagoFileRef.current.click()} style={{fontSize:11,color:"#1a56db",background:"none",border:"1px dashed #93c5fd",borderRadius:6,padding:"2px 9px",cursor:"pointer",flexShrink:0}}>{nuevoPagoFile?"📎 "+nuevoPagoFile.name:"+ Adjuntar comprobante"}</button>
-                      <button disabled={!nuevoPagoMonto||saving} onClick={async()=>{
+                      <button disabled={saving} onClick={async()=>{
+                        const montoEfectivo=nuevoPagoMonto!==""?+nuevoPagoMonto:sugerido;
+                        if(!montoEfectivo||montoEfectivo<=0){setSaving(false);return;}
                         setSaving(true);
                         let path=null,nombre=null;
                         if(nuevoPagoFile){
@@ -711,12 +713,12 @@ function Detail({p,user,providers,onClose,onUpdate,onOpenFile,onEdit}){
                           await sb.storage.from("archivos").upload(path,nuevoPagoFile);
                           nombre=nuevoPagoFile.name;
                         }
-                        const nuevo={id:Date.now(),monto:+nuevoPagoMonto,fecha:nuevoPagoFecha||new Date().toISOString().split("T")[0],path,nombre,confirmado:true};
+                        const nuevo={id:Date.now(),monto:montoEfectivo,fecha:nuevoPagoFecha||new Date().toISOString().split("T")[0],path,nombre,confirmado:true};
                         const pagosNuevos=[...pagosActuales,nuevo];
                         const totPag=pagosNuevos.filter(pg=>pg.confirmado).reduce((s,pg)=>s+(+pg.monto||0),0);
-                        await act({pagos:pagosNuevos,pagado:totPag>=(montoRef*0.99)},"Pago "+(pagosActuales.length+1)+" registrado — "+fmtM(+nuevoPagoMonto,p.moneda));
+                        await act({pagos:pagosNuevos,pagado:totPag>=(montoRef*0.99)},"Pago "+(pagosActuales.length+1)+" registrado — "+fmtM(montoEfectivo,p.moneda));
                         setNuevoPagoMonto("");setNuevoPagoFecha("");setNuevoPagoFile(null);setSaving(false);
-                      }} style={{padding:"4px 12px",background:"#1a56db",color:"#fff",border:"none",borderRadius:5,fontSize:11,fontWeight:600,cursor:"pointer",opacity:(!nuevoPagoMonto||saving)?0.4:1,flexShrink:0}}>
+                      }} style={{padding:"4px 12px",background:"#1a56db",color:"#fff",border:"none",borderRadius:5,fontSize:11,fontWeight:600,cursor:"pointer",opacity:saving?0.4:1,flexShrink:0}}>
                         {saving?"...":"✓ Confirmar"}
                       </button>
                     </div>
@@ -741,7 +743,7 @@ function Detail({p,user,providers,onClose,onUpdate,onOpenFile,onEdit}){
         {CAN_APP(role)&&!["RECHAZADO","RECIBIDO"].includes(p.estado)&&<AB color="#dc2626" label="❌ Rechazar" onClick={()=>act({estado:"RECHAZADO"},"Rechazado")} loading={saving}/>}
         {CAN_APP(role)&&!["RECHAZADO","RECIBIDO","REVISIÓN"].includes(p.estado)&&<AB color="#d97706" label="🔄 Enviar a Revisión" onClick={()=>act({estado:"REVISIÓN"},"Enviado a revisión")} loading={saving}/>}
         {p.estado==="APROBADO"&&<AB color="#7c3aed" label="📦 Marcar Recibido" onClick={()=>act({estado:"RECIBIDO"},"Mercadería recibida")} loading={saving}/>}
-        {CAN_FIN(role)&&<div style={{borderTop:"1px solid #f1f5f9",paddingTop:7,marginTop:2,display:"flex",flexDirection:"column",gap:5}}><div style={{fontSize:11,color:"#94a3b8",fontWeight:500}}>Administración</div>{!p.facturaRecibida&&<AB color="#0d9488" label="🧾 Factura Recibida" onClick={()=>act({facturaRecibida:true},"Factura recibida")} loading={saving}/>}{!p.pagado&&<AB color="#059669" label="💳 Pago Realizado" onClick={()=>act({pagado:true},"Pago realizado")} loading={saving}/>}</div>}
+        {CAN_FIN(role)&&<div style={{borderTop:"1px solid #f1f5f9",paddingTop:7,marginTop:2,display:"flex",flexDirection:"column",gap:5}}><div style={{fontSize:11,color:"#94a3b8",fontWeight:500}}>Administración</div>{!p.facturaRecibida&&<AB color="#0d9488" label="🧾 Factura Recibida" onClick={()=>act({facturaRecibida:true},"Factura recibida")} loading={saving}/>}</div>}
         {hasNF&&<AB color="#1a56db" label="💾 Guardar archivos" onClick={()=>act({},"Archivos actualizados")} loading={saving}/>}
       </div>
       <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}><div style={{fontSize:10,fontWeight:600,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:5}}>Historial</div>
