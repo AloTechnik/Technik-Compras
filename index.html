@@ -695,9 +695,8 @@ function Detail({p,user,providers,onClose,onUpdate,onOpenFile,onEdit}){
                       <button onClick={()=>document.getElementById("compFileChg"+i).click()} style={{fontSize:10,color:"#94a3b8",background:"none",border:"none",cursor:"pointer",textDecoration:"underline"}}>Cambiar</button></>}
                     </div>
                   </>):(i===pagosActuales.length&&CAN_FIN(role)&&saldo>0?<div>
-                    <div style={{display:"grid",gridTemplateColumns:"1fr 110px",gap:6,marginBottom:5}}>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr",gap:6,marginBottom:5}}>
                       <input type="number" min="0" max={montoRef} placeholder={"Monto ("+p.moneda+")"} value={nuevoPagoMonto!==""?nuevoPagoMonto:sugerido} onChange={e=>{const v=Math.min(+e.target.value,montoRef);setNuevoPagoMonto(String(v));}} style={{border:"1px solid #e2e8f0",borderRadius:5,padding:"4px 8px",fontSize:11,outline:"none",color:"#334155"}}/>
-                      <input type="date" value={nuevoPagoFecha} onChange={e=>setNuevoPagoFecha(e.target.value)} style={{border:"1px solid #e2e8f0",borderRadius:5,padding:"4px 8px",fontSize:11,outline:"none",color:"#334155"}}/>
                     </div>
 
                     <div style={{display:"flex",gap:6,alignItems:"center"}}>
@@ -713,11 +712,11 @@ function Detail({p,user,providers,onClose,onUpdate,onOpenFile,onEdit}){
                           await sb.storage.from("archivos").upload(path,nuevoPagoFile);
                           nombre=nuevoPagoFile.name;
                         }
-                        const nuevo={id:Date.now(),monto:montoEfectivo,fecha:nuevoPagoFecha||new Date().toISOString().split("T")[0],path,nombre,confirmado:true};
+                        const nuevo={id:Date.now(),monto:montoEfectivo,fecha:new Date().toISOString().split("T")[0],path,nombre,confirmado:true};
                         const pagosNuevos=[...pagosActuales,nuevo];
                         const totPag=pagosNuevos.filter(pg=>pg.confirmado).reduce((s,pg)=>s+(+pg.monto||0),0);
                         await act({pagos:pagosNuevos,pagado:totPag>=(montoRef*0.99)},"Pago "+(pagosActuales.length+1)+" registrado — "+fmtM(montoEfectivo,p.moneda));
-                        setNuevoPagoMonto("");setNuevoPagoFecha("");setNuevoPagoFile(null);setSaving(false);
+                        setNuevoPagoMonto("");setNuevoPagoFile(null);setSaving(false);
                       }} style={{padding:"4px 12px",background:"#1a56db",color:"#fff",border:"none",borderRadius:5,fontSize:11,fontWeight:600,cursor:"pointer",opacity:saving?0.4:1,flexShrink:0}}>
                         {saving?"...":"✓ Confirmar"}
                       </button>
