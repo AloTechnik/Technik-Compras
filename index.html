@@ -80,6 +80,7 @@ function applyFilter(list,filter,search){
   if(filter==="SIN_FACTURA")r=r.filter(p=>!p.facturaRecibida&&["APROBADO","RECIBIDO"].includes(p.estado));
   else if(filter==="PAGO_PENDIENTE")r=r.filter(p=>!p.pagado&&["APROBADO","RECIBIDO"].includes(p.estado));
   else if(filter==="PENDIENTE_RECEPCION")r=r.filter(p=>p.estado==="APROBADO");
+  else if(filter==="PAGADO_SIN_RECIBIR")r=r.filter(p=>p.pagado&&p.estado==="APROBADO");
   else if(filter!=="TODOS")r=r.filter(p=>p.estado===filter);
   if(search)r=r.filter(p=>[p.proveedor,p.descripcion,p.solicitante,p.categoria,p.obra].some(v=>v?.toLowerCase().includes(search.toLowerCase())));
   return r;
@@ -360,7 +361,8 @@ function MainApp({user,onLogout}){
   const cSF=purchases.filter(p=>!p.facturaRecibida&&["APROBADO","RECIBIDO"].includes(p.estado)).length;
   const cPP=purchases.filter(p=>!p.pagado&&["APROBADO","RECIBIDO"].includes(p.estado)).length;
   const cPR=purchases.filter(p=>p.estado==="APROBADO").length;
-  const filterLabel=()=>{if(filter==="TODOS")return"Todas las Solicitudes";if(filter==="SIN_FACTURA")return"Sin Factura";if(filter==="PAGO_PENDIENTE")return"Pago Pendiente";if(filter==="PENDIENTE_RECEPCION")return"Pendiente de Recepción";return STATUS[filter]?.label;};
+  const cPSR=purchases.filter(p=>p.pagado&&p.estado==="APROBADO").length;
+  const filterLabel=()=>{if(filter==="TODOS")return"Todas las Solicitudes";if(filter==="SIN_FACTURA")return"Sin Factura";if(filter==="PAGO_PENDIENTE")return"Pago Pendiente";if(filter==="PENDIENTE_RECEPCION")return"Pendiente de Recepción";if(filter==="PAGADO_SIN_RECIBIR")return"Pagado sin Recibir";return STATUS[filter]?.label;};
 
   const exportarExcel=()=>{
     const sorted=[...filtered].sort((a,b)=>{const order=["UYU","USD","EUR"];return(order.indexOf(a.moneda)||99)-(order.indexOf(b.moneda)||99);});
@@ -416,6 +418,9 @@ function MainApp({user,onLogout}){
                 <span>{icon} {label}</span><span style={{fontSize:10,background:"#f1f5f9",color:"#64748b",borderRadius:10,padding:"1px 6px"}}>{count}</span>
               </button>
             ))}
+            <button onClick={()=>setFilter("PAGADO_SIN_RECIBIR")} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 8px",borderRadius:7,border:filter==="PAGADO_SIN_RECIBIR"?"1px solid #bbf7d0":"1px solid transparent",cursor:"pointer",textAlign:"left",fontSize:12,background:filter==="PAGADO_SIN_RECIBIR"?"#f0fdf4":"none",color:filter==="PAGADO_SIN_RECIBIR"?"#15803d":"#475569",fontWeight:filter==="PAGADO_SIN_RECIBIR"?600:400}}>
+              <span>✅💰 Pagado sin Recibir</span><span style={{fontSize:10,background:cPSR>0?"#bbf7d0":"#f1f5f9",color:cPSR>0?"#15803d":"#64748b",borderRadius:10,padding:"1px 6px",fontWeight:cPSR>0?600:400}}>{cPSR}</span>
+            </button>
             <div style={{fontSize:10,fontWeight:600,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.06em",padding:"12px 6px 4px"}}>Pendientes de gestión</div>
             <button onClick={()=>setFilter("PAGO_PENDIENTE")} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 8px",borderRadius:7,border:filter==="PAGO_PENDIENTE"?"1px solid #f9a8d4":"1px solid transparent",cursor:"pointer",textAlign:"left",fontSize:12,background:filter==="PAGO_PENDIENTE"?"#fdf2f8":"none",color:filter==="PAGO_PENDIENTE"?"#9d174d":"#475569",fontWeight:filter==="PAGO_PENDIENTE"?600:400}}>
               <span>💳 Pago Pendiente</span><span style={{fontSize:10,background:cPP>0?"#f9a8d4":"#f1f5f9",color:cPP>0?"#9d174d":"#64748b",borderRadius:10,padding:"1px 6px",fontWeight:cPP>0?600:400}}>{cPP}</span>
@@ -444,6 +449,7 @@ function MainApp({user,onLogout}){
               <div><h2 style={{margin:0,fontSize:15,fontWeight:600,color:"#1e293b"}}>{filterLabel()} <span style={{fontSize:12,fontWeight:400,color:"#94a3b8"}}>({filtered.length})</span></h2>
                 {filter==="SIN_FACTURA"&&<div style={{fontSize:11,color:"#c2410c",marginTop:2}}>Compras recibidas sin factura registrada</div>}
                 {filter==="PAGO_PENDIENTE"&&<div style={{fontSize:11,color:"#9d174d",marginTop:2}}>Compras aprobadas o recibidas con pago pendiente</div>}
+                {filter==="PAGADO_SIN_RECIBIR"&&<div style={{fontSize:11,color:"#15803d",marginTop:2}}>Compras aprobadas y pagas pendientes de recepción</div>}
                 {filter==="PENDIENTE_RECEPCION"&&<div style={{fontSize:11,color:"#92400e",marginTop:2}}>Compras aprobadas aún no recibidas</div>}
               </div>
               <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar proveedor, obra, descripción..." style={{marginLeft:"auto",border:"1px solid #e2e8f0",borderRadius:7,padding:"5px 10px",fontSize:12,color:"#1e293b",background:"#fff",width:220,outline:"none"}}/>
